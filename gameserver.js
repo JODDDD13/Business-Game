@@ -7,14 +7,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 1. Tell Express to serve everything inside the "public" folder!
-app.use(express.static(path.join(__dirname, 'public')));
+// 1. Tell Express to serve files from the CURRENT folder
+app.use(express.static(__dirname));
 
-// 2. When someone visits localhost:3000, send them game.html from the public folder
+// 2. When someone visits the URL, send them game.html
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'game.html'), (err) => {
+    res.sendFile(path.join(__dirname, 'game.html'), (err) => {
         if (err) {
-            console.error("ERROR: Could not find game.html in the public folder", err);
+            console.error("ERROR: Could not find game.html", err);
             res.status(500).send("<h2>Error: game.html not found!</h2>");
         }
     });
@@ -82,6 +82,6 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`Serving files from: ${path.join(__dirname, 'public')}`);
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Serving files from: ${__dirname}`);
 });
