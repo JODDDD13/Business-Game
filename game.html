@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business (Nava Vyapar) - Corporate Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="game.css">
+    
+    <!-- IMPORT MAP FOR THREE.JS & CANNON-ES -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.181.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.181.0/examples/jsm/",
+        "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+      }
+    }
+    </script>
+    
+    <!-- SOCKET.IO CLIENT SCRIPT -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        .rules-scroll::-webkit-scrollbar { width: 4px; }
+        .rules-scroll::-webkit-scrollbar-track { background: transparent; }
+        .rules-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .aspect-square { aspect-ratio: 1 / 1; }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .chat-animate { animation: slideInRight 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-[#05070a] font-sans text-white overflow-hidden w-screen h-screen">
+
+    <!-- 1. PRE-GAME SETUP LOBBY (HYBRID) -->
+    <div id="setup-screen" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gradient-to-br from-[#0b101e] via-[#111827] to-[#05070a]">
+        <div class="bg-[#0f172a] border border-slate-700 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] p-6 md:p-8 w-full max-w-md flex flex-col items-center transition-all duration-300">
+            
+            <div class="mb-6 text-center">
+                <h1 class="text-4xl md:text-5xl font-black tracking-[0.1em] italic text-red-500 [text-shadow:0_0_15px_rgba(239,68,68,0.8)]">BUSINESS</h1>
+                <p id="lobby-subtitle" class="text-[10px] text-slate-400 font-bold tracking-[0.3em] uppercase mt-1">Select Game Mode</p>
+            </div>
+
+            <!-- MODE SELECTION -->
+            <div id="mode-selection" class="w-full flex flex-col gap-4">
+                <button onclick="window.selectMode('local')" class="w-full py-4 bg-slate-800 border-2 border-slate-600 hover:border-blue-500 hover:bg-slate-700 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
+                    <span>Pass & Play</span>
+                    <span class="text-[9px] text-slate-400 font-normal normal-case tracking-normal">Single Device, 2-8 Players</span>
+                </button>
+                <button onclick="window.selectMode('online')" class="w-full py-4 bg-slate-800 border-2 border-slate-600 hover:border-purple-500 hover:bg-slate-700 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
+                    <span>Online Multiplayer</span>
+                    <span class="text-[9px] text-slate-400 font-normal normal-case tracking-normal">Connect via Server</span>
+                </button>
+            </div>
+
+            <!-- LOCAL PLAY SETUP -->
+            <div id="local-setup" class="w-full hidden flex-col">
+                <div class="w-full mb-4">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Players</label>
+                    <select id="player-count-select" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-red-500 transition-colors cursor-pointer" onchange="window.updatePlayerInputs()">
+                        <option value="2">2 Players</option>
+                        <option value="3">3 Players</option>
+                        <option value="4" selected>4 Players</option>
+                        <option value="5">5 Players</option>
+                        <option value="6">6 Players</option>
+                        <option value="7">7 Players</option>
+                        <option value="8">8 Players (Max)</option>
+                    </select>
+                </div>
+                <div class="w-full flex flex-col gap-3 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="player-inputs-container">
+                    <!-- Inputs injected via JS -->
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.backToModes()" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
+                    <button onclick="window.startLocalGame()" class="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95">Start Game</button>
+                </div>
+            </div>
+
+            <!-- ONLINE MULTIPLAYER SETUP -->
+            <div id="online-setup" class="w-full hidden flex-col">
+                <div class="w-full mb-6" id="join-section">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Enter Your Name</label>
+                    <input type="text" id="player-name-input" placeholder="Your Name" maxlength="12" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-blue-500 transition-colors mb-4">
+                    <div class="flex gap-2">
+                        <button onclick="window.backToModes()" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
+                        <button onclick="window.joinOnlineGame()" id="btn-join" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95">Join Lobby</button>
+                    </div>
+                </div>
+
+                <div class="w-full flex flex-col gap-3 mb-6 hidden max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="lobby-players-container">
+                    <!-- Players in lobby injected via JS -->
+                </div>
+
+                <button onclick="window.startOnlineGame()" id="btn-start-online" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95 hidden">
+                    Start Game
+                </button>
+                
+                <p id="lobby-status" class="text-[10px] text-slate-400 mt-4 italic text-center hidden"></p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 2. MAIN GAME UI (Hidden until Start Game is clicked) -->
+    <div id="game-ui" class="hidden flex-col lg:flex-row items-center justify-center h-full w-full p-2 md:p-4 gap-4 lg:gap-6 relative">
+        
+        <!-- UNIVERSAL ACTION MODAL -->
+        <div id="action-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+            <div class="bg-[#0f172a] border border-slate-600 rounded-xl shadow-[0_0_50px_rgba(0,0,0,1)] w-full max-w-sm overflow-hidden flex flex-col transform transition-all scale-95 opacity-0" id="action-modal-content">
+                <div id="action-modal-header" class="p-6 border-b border-slate-800 text-center flex flex-col items-center justify-center min-h-[6rem]">
+                    <h2 id="action-modal-title" class="text-2xl font-black uppercase tracking-widest text-white [text-shadow:0_0_10px_rgba(0,0,0,0.5)]">Title</h2>
+                </div>
+                <div class="p-6 flex flex-col items-center bg-[#141b2d]">
+                    <div id="action-modal-desc" class="text-slate-300 text-sm text-center mb-6 w-full leading-relaxed">Description</div>
+                    <div id="action-modal-buttons" class="flex flex-col md:flex-row gap-3 w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FLOATING NOTIFICATIONS -->
+        <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-72 pointer-events-none"></div>
+
+        <!-- LEFT PANEL: THE BANK -->
+        <div id="left-panel" class="w-full lg:w-[320px] xl:w-[340px] h-auto lg:h-full max-h-[35vh] lg:max-h-[95vh] bg-[#0d1321] border border-slate-700 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex flex-col shrink-0 z-20">
+            
+            <div class="p-3 lg:p-6 text-left border-b border-slate-800 flex justify-between items-center lg:block shrink-0">
+                <div>
+                    <h2 class="text-xl lg:text-3xl font-black tracking-widest text-white uppercase [text-shadow:0_0_8px_rgba(255,255,255,0.5)]">The Bank</h2>
+                    <p class="text-[10px] lg:text-xs text-slate-400 mt-0 lg:mt-1">Nava Vyapar Reserve</p>
+                </div>
+                <button onclick="window.requestRoll()" id="btn-roll-mobile" class="lg:hidden py-2 px-6 bg-purple-600 text-white font-black text-xs uppercase rounded-md shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
+                    🎲 Roll
+                </button>
+            </div>
+
+            <div class="p-2 lg:p-4 flex flex-col gap-1 lg:gap-2 border-b border-slate-800 overflow-y-auto shrink-0 rules-scroll" id="player-list"></div>
+
+            <div class="hidden lg:flex p-4 flex-col gap-3 border-b border-slate-800 shrink-0">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Bank Loan System</h3>
+                <select id="loan-player-select" class="w-full p-2 bg-slate-800 border border-slate-600 rounded-md text-sm font-bold text-white focus:border-blue-500 outline-none"></select>
+                <input type="number" id="loan-amount" placeholder="Amount (e.g. 1000 = 3 turns)" class="w-full p-2 bg-slate-800 border border-slate-600 rounded-md text-sm font-bold text-white focus:border-blue-500 outline-none" min="500" step="500">
+                
+                <div class="flex gap-2">
+                    <button onclick="window.takeLoan()" class="flex-1 py-2 bg-teal-600 hover:bg-teal-500 text-white font-black text-xs uppercase rounded-md shadow-[0_0_10px_rgba(13,148,136,0.3)] transition-all active:scale-95 disabled:opacity-50">Take Loan</button>
+                    <button onclick="window.repayLoan()" class="flex-1 py-2 bg-orange-600 hover:bg-orange-500 text-white font-black text-xs uppercase rounded-md shadow-[0_0_10px_rgba(234,88,12,0.3)] transition-all active:scale-95 disabled:opacity-50">Repay</button>
+                </div>
+
+                <button onclick="window.requestRoll()" id="btn-roll-desktop" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black text-sm uppercase rounded-md shadow-[0_0_15px_rgba(168,85,247,0.6)] mt-2 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                    🎲 Roll Dice
+                </button>
+            </div>
+
+            <!-- 3D DICE CONTAINER -->
+            <div class="flex-1 p-2 lg:p-4 flex flex-col items-center justify-center relative min-h-[120px] lg:min-h-[140px] w-full mt-1 shrink-0">
+                <div id="dice-3d-container" class="w-full h-20 lg:h-32 bg-[#0b101e] rounded-xl overflow-hidden border-2 border-slate-700/50 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] relative cursor-pointer" onclick="window.requestRoll()">
+                    <div id="dice-overlay" class="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] opacity-0 transition-opacity duration-300 pointer-events-none z-10">
+                        <div class="bg-white/95 px-6 py-2 rounded-xl shadow-[0_0_25px_rgba(255,255,255,0.4)] transform scale-90 transition-transform duration-300" id="dice-overlay-box">
+                            <span id="dice-result" class="text-3xl lg:text-4xl font-black text-slate-900">-</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-[8px] lg:text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center mt-2" id="turn-indicator">Waiting...</p>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: THE NEON BOARD -->
+        <div id="game-board" class="aspect-square w-full max-w-[95vw] lg:w-auto lg:h-full lg:max-h-[95vh] grid grid-cols-10 grid-rows-10 bg-[#0f172a] border border-slate-700 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden shrink-0 relative">
+            
+             <!-- Connecting Overlay -->
+             <div id="connecting-overlay" class="absolute inset-0 z-50 bg-[#0f172a]/80 backdrop-blur-sm hidden items-center justify-center">
+                 <div class="flex flex-col items-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+                    <p class="text-white font-bold tracking-widest uppercase text-sm" id="overlay-msg">Connecting to Server...</p>
+                 </div>
+             </div>
+
+            <div class="col-start-2 col-end-10 row-start-2 row-end-10 bg-[#0b101e] flex flex-col p-2 md:p-6 lg:p-8 relative border border-slate-800 overflow-hidden">
+                
+                <div class="mb-2 md:mb-4 text-center shrink-0 pt-2">
+                    <h1 class="text-3xl md:text-5xl lg:text-7xl font-black tracking-[0.1em] italic text-red-500 [text-shadow:0_0_10px_#ef4444,0_0_20px_#ef4444,0_0_40px_#dc2626]">BUSINESS</h1>
+                    <p class="text-[6px] md:text-[10px] lg:text-xs text-slate-400 font-bold tracking-[0.3em] uppercase mt-1">Corporate Edition</p>
+                </div>
+
+                <div class="w-full flex-1 flex flex-col md:flex-row gap-3 overflow-hidden z-10 mt-2">
+                    <div class="hidden md:flex flex-col w-5/12 overflow-y-auto rules-scroll gap-2 pr-2 pb-2">
+                        <div class="bg-[#111827] border border-slate-700/50 rounded p-3 border-l-4 border-l-orange-500 shrink-0">
+                            <h3 class="text-orange-500 font-black text-[9px] lg:text-[10px] uppercase tracking-wider mb-1">❓ CHANCE</h3>
+                            <ul class="text-[8px] lg:text-[9px] text-slate-400 space-y-0.5">
+                                <li><span class="text-white font-bold">2-4:</span> Crash. Pay 10%.</li>
+                                <li><span class="text-white font-bold">5-8:</span> Dividend. Get ₹1500.</li>
+                                <li><span class="text-white font-bold">9-11:</span> VC Fund. Get ₹3000.</li>
+                                <li><span class="text-white font-bold">12:</span> Espionage. Steal ₹1000.</li>
+                            </ul>
+                        </div>
+                        <div class="bg-[#111827] border border-slate-700/50 rounded p-3 border-l-4 border-l-slate-400 shrink-0">
+                            <h3 class="text-slate-300 font-black text-[9px] lg:text-[10px] uppercase tracking-wider mb-1">💼 INCOME TAX</h3>
+                            <p class="text-[8px] lg:text-[9px] text-slate-400 leading-tight">Pay <span class="text-red-500 font-bold">₹2000</span> OR <span class="text-red-500 font-bold">10% of cash</span>.</p>
+                        </div>
+                        <div class="bg-[#111827] border border-slate-700/50 rounded p-3 border-l-4 border-l-red-500 shrink-0">
+                            <h3 class="text-red-500 font-black text-[9px] lg:text-[10px] uppercase tracking-wider mb-1">🚓 JAIL</h3>
+                            <ul class="text-[8px] lg:text-[9px] text-slate-400 space-y-0.5">
+                                <li>1. <span class="text-white font-bold">Bribe:</span> Pay ₹5000.</li>
+                                <li>2. <span class="text-white font-bold">Time:</span> Skip 2 turns.</li>
+                            </ul>
+                        </div>
+                        <div class="bg-[#111827] border border-slate-700/50 rounded p-3 border-l-4 border-l-teal-400 shrink-0">
+                            <h3 class="text-teal-400 font-black text-[9px] lg:text-[10px] uppercase tracking-wider mb-1">🛏️ REST HOUSE</h3>
+                            <p class="text-[8px] lg:text-[9px] text-slate-400 leading-tight">Skip up to 2 turns. Earn <span class="text-green-500 font-bold">₹1000/turn</span>.</p>
+                        </div>
+                    </div>
+
+                    <div class="w-full md:w-7/12 h-full flex flex-col bg-[#0b101e] border border-slate-700 rounded-lg overflow-hidden shrink-0 shadow-inner">
+                        <div class="p-2 border-b border-slate-700 bg-[#0d1321] shrink-0">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2"><span>💬</span> Game Log</h3>
+                        </div>
+                        <div id="activity-log" class="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5 rules-scroll bg-[#0f172a]/50 overflow-x-hidden">
+                            <div class="text-[9px] text-slate-500 text-center italic mt-1 mb-2">Game initializing...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GAME SCRIPT -->
+    <script type="module">
+        import * as THREE from "three";
+        import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+        import * as CANNON from "cannon-es";
+
+        // ==========================================
+        // 1. STATE & CONSTANTS
+        // ==========================================
+        const socket = typeof io !== 'undefined' ? io() : null; // Connect only if Socket.io is available
+        
+        let gameMode = 'local'; // 'local' or 'online'
+        let myPlayerId = 'local_host'; // Used for online permissions
+        let isRollingAnimation = false;
+
+        let localGameState = {
+            players: [],
+            currentPlayerIndex: 0,
+            isAwaitingAction: false,
+            gameStarted: false
+        };
+
+        const PLAYER_COLORS = [
+            "bg-red-500", "bg-blue-500", "bg-green-500", "bg-yellow-400 text-slate-900",
+            "bg-purple-500", "bg-cyan-400 text-slate-900", "bg-pink-500", "bg-orange-500"
+        ];
+
+        const boardData = [
+            { id: 0, name: "START", type: "corner", stringPrice: "Collect ₹1500" },
+            { id: 1, name: "Mumbai", type: "property", color: "bg-yellow-400", price: 8500, rent: 800, ownerId: null },
+            { id: 2, name: "Ahmedabad", type: "property", color: "bg-yellow-400", price: 4000, rent: 400, ownerId: null },
+            { id: 3, name: "Indore", type: "property", color: "bg-yellow-400", price: 1500, rent: 150, ownerId: null },
+            { id: 4, name: "Motor Boat", type: "transport", color: "bg-slate-500", price: 5500, rent: 500, ownerId: null },
+            { id: 5, name: "Pune", type: "property", color: "bg-green-500", price: 2000, rent: 200, ownerId: null },
+            { id: 6, name: "Wealth Tax", type: "tax", color: "bg-slate-700", stringPrice: "Pay 10%" },
+            { id: 7, name: "Bangalore", type: "property", color: "bg-green-500", price: 4000, rent: 400, ownerId: null },
+            { id: 8, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
+            { id: 9, name: "JAIL", type: "corner", stringPrice: "No Rent" },
+            { id: 10, name: "Jaipur", type: "property", color: "bg-green-500", price: 3000, rent: 300, ownerId: null },
+            { id: 11, name: "New Delhi", type: "property", color: "bg-red-500", price: 6000, rent: 600, ownerId: null },
+            { id: 12, name: "Chandigarh", type: "property", color: "bg-red-500", price: 2500, rent: 250, ownerId: null },
+            { id: 13, name: "BEST Bus", type: "transport", color: "bg-slate-500", price: 3500, rent: 350, ownerId: null },
+            { id: 14, name: "Electric Co.", type: "utility", color: "bg-slate-500", price: 2500, rent: 250, ownerId: null },
+            { id: 15, name: "Chennai", type: "property", color: "bg-blue-500", price: 7000, rent: 700, ownerId: null },
+            { id: 16, name: "Air India", type: "transport", color: "bg-slate-500", price: 10500, rent: 1050, ownerId: null },
+            { id: 17, name: "Railway", type: "transport", color: "bg-slate-500", price: 9500, rent: 950, ownerId: null },
+            { id: 18, name: "SPORTS CLUB", type: "corner", stringPrice: "Wager" },
+            { id: 19, name: "Water Works", type: "utility", color: "bg-slate-500", price: 3000, rent: 300, ownerId: null },
+            { id: 20, name: "Kolkata", type: "property", color: "bg-blue-500", price: 6500, rent: 650, ownerId: null },
+            { id: 21, name: "Hyderabad", type: "property", color: "bg-blue-500", price: 3500, rent: 350, ownerId: null },
+            { id: 22, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
+            { id: 23, name: "Darjeeling", type: "property", color: "bg-fuchsia-500", price: 2500, rent: 250, ownerId: null },
+            { id: 24, name: "Income Tax", type: "tax", color: "bg-slate-700", stringPrice: "Pay 10%" },
+            { id: 25, name: "Amritsar", type: "property", color: "bg-fuchsia-500", price: 3000, rent: 300, ownerId: null },
+            { id: 26, name: "Srinagar", type: "property", color: "bg-fuchsia-500", price: 5000, rent: 500, ownerId: null },
+            { id: 27, name: "REST HOUSE", type: "corner", stringPrice: "Retreat" },
+            { id: 28, name: "Agra", type: "property", color: "bg-orange-500", price: 2500, rent: 250, ownerId: null },
+            { id: 29, name: "Kanpur", type: "property", color: "bg-orange-500", price: 4000, rent: 400, ownerId: null },
+            { id: 30, name: "Patna", type: "property", color: "bg-orange-500", price: 2000, rent: 200, ownerId: null },
+            { id: 31, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
+            { id: 32, name: "Goa", type: "property", color: "bg-purple-500", price: 4000, rent: 400, ownerId: null },
+            { id: 33, name: "Ooty", type: "property", color: "bg-purple-500", price: 2500, rent: 250, ownerId: null },
+            { id: 34, name: "Shimla", type: "property", color: "bg-purple-500", price: 2000, rent: 200, ownerId: null },
+            { id: 35, name: "Custom Duty", type: "tax", color: "bg-slate-700", stringPrice: "Pay ₹50" }
+        ];
+
+        // --- DOM ELEMENTS ---
+        const boardContainer = document.getElementById('game-board');
+        const playerListContainer = document.getElementById('player-list');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const diceResult = document.getElementById('dice-result');
+        const activityLog = document.getElementById('activity-log');
+        const toastContainer = document.getElementById('toast-container');
+        
+        const modal = document.getElementById('action-modal');
+        const modalContent = document.getElementById('action-modal-content');
+        const modalHeader = document.getElementById('action-modal-header');
+        const modalTitle = document.getElementById('action-modal-title');
+        const modalDesc = document.getElementById('action-modal-desc');
+        const modalButtons = document.getElementById('action-modal-buttons');
+
+        // ==========================================
+        // 2. LOBBY & SETUP
+        // ==========================================
+        window.selectMode = function(mode) {
+            gameMode = mode;
+            document.getElementById('mode-selection').classList.add('hidden');
+            document.getElementById('lobby-subtitle').innerText = mode === 'local' ? 'Pass & Play Setup' : 'Multiplayer Lobby';
+            
+            if (mode === 'local') {
+                document.getElementById('local-setup').classList.remove('hidden');
+                document.getElementById('local-setup').classList.add('flex');
+                window.updatePlayerInputs();
+            } else {
+                document.getElementById('online-setup').classList.remove('hidden');
+                document.getElementById('online-setup').classList.add('flex');
+            }
+        };
+
+        window.backToModes = function() {
+            document.getElementById('local-setup').classList.add('hidden');
+            document.getElementById('online-setup').classList.add('hidden');
+            document.getElementById('local-setup').classList.remove('flex');
+            document.getElementById('online-setup').classList.remove('flex');
+            
+            document.getElementById('mode-selection').classList.remove('hidden');
+            document.getElementById('lobby-subtitle').innerText = 'Select Game Mode';
+        };
+
+        // --- LOCAL SETUP ---
+        window.updatePlayerInputs = function() {
+            const count = parseInt(document.getElementById('player-count-select').value);
+            const container = document.getElementById('player-inputs-container');
+            container.innerHTML = '';
+            for(let i=0; i<count; i++) {
+                const colorBase = PLAYER_COLORS[i].split(' ')[0];
+                container.innerHTML += `
+                    <div class="relative flex items-center w-full">
+                        <div class="absolute left-3.5 w-3 h-3 rounded-full ${colorBase} shrink-0 shadow-[0_0_8px_currentColor] pointer-events-none"></div>
+                        <input type="text" id="player-name-${i}" value="Player ${i+1}" maxlength="12" class="w-full py-3 pl-10 pr-4 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-blue-500 hover:border-slate-500 transition-colors">
+                    </div>
+                `;
+            }
+        };
+
+        window.startLocalGame = function() {
+            const count = parseInt(document.getElementById('player-count-select').value);
+            localGameState.players = [];
+            for(let i=0; i<count; i++) {
+                const name = document.getElementById(`player-name-${i}`).value.trim() || `Player ${i+1}`;
+                localGameState.players.push({
+                    id: `local_${i}`,
+                    name: name,
+                    balance: 15000,
+                    position: 0,
+                    skipTurns: 0,
+                    loan: 0,
+                    loanTurns: 0,
+                    colorClass: PLAYER_COLORS[i]
+                });
+            }
+            localGameState.gameStarted = true;
+            transitionToGame();
+            broadcastOrLocalToast("Local Game Started! First player, roll the dice.", "info");
+        };
+
+        // --- ONLINE SETUP ---
+        window.joinOnlineGame = function() {
+            if (!socket) return alert("Server not connected.");
+            const nameInput = document.getElementById('player-name-input');
+            const name = nameInput.value.trim();
+            if (!name) return alert("Please enter your name.");
+            
+            socket.emit('joinGame', name);
+            
+            document.getElementById('join-section').classList.add('hidden');
+            document.getElementById('lobby-players-container').classList.remove('hidden');
+            document.getElementById('lobby-status').classList.remove('hidden');
+            document.getElementById('lobby-status').innerText = "Waiting for Host to start...";
+        };
+
+        window.startOnlineGame = function() {
+            if (socket) socket.emit('startGame');
+        };
+
+        function updateOnlineLobbyUI() {
+            const container = document.getElementById('lobby-players-container');
+            container.innerHTML = '';
+            
+            localGameState.players.forEach(p => {
+                const colorBase = p.colorClass.split(' ')[0];
+                container.innerHTML += `
+                    <div class="flex items-center gap-3 p-3 bg-slate-800 border border-slate-700 rounded-lg">
+                        <div class="w-4 h-4 rounded-full ${colorBase} shrink-0 shadow-[0_0_8px_currentColor]"></div>
+                        <span class="text-sm text-white font-bold">${p.name} ${p.id === myPlayerId ? '(You)' : ''}</span>
+                    </div>
+                `;
+            });
+
+            if (localGameState.players.length > 0 && localGameState.players[0].id === myPlayerId) {
+                document.getElementById('btn-start-online').classList.remove('hidden');
+                document.getElementById('lobby-status').innerText = "You are the Host. Start when ready.";
+                
+                document.getElementById('btn-start-online').disabled = localGameState.players.length < 2;
+                if(localGameState.players.length < 2) {
+                     document.getElementById('btn-start-online').classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                     document.getElementById('btn-start-online').classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+
+        // Shared Transition
+        function transitionToGame() {
+            document.getElementById('setup-screen').classList.add('hidden');
+            const gameUi = document.getElementById('game-ui');
+            gameUi.classList.remove('hidden');
+            gameUi.classList.add('flex');
+            
+            init3D();
+            renderBoard();
+            renderBankUI();
+        }
+
+        // ==========================================
+        // 3. SOCKET LISTENERS (Online Only)
+        // ==========================================
+        if (socket) {
+            socket.on('connect', () => { myPlayerId = socket.id; });
+            
+            socket.on('gameStateUpdate', (newState) => {
+                if (gameMode !== 'online') return;
+                localGameState = newState;
+                updateOnlineLobbyUI();
+                if (localGameState.gameStarted && !isRollingAnimation) {
+                    renderBoard(); renderBankUI();
+                }
+            });
+
+            socket.on('toastMessage', (data) => showToast(data.msg, data.type));
+
+            socket.on('gameStarted', (newState) => {
+                if (gameMode !== 'online') return;
+                localGameState = newState;
+                transitionToGame();
+                showToast("Online Game Started! Waiting for first roll...", "info");
+            });
+
+            socket.on('playDiceAnimation', (data) => {
+                if (gameMode !== 'online') return;
+                const { totalRoll, newState } = data;
+                isRollingAnimation = true;
+                renderBankUI(); 
+                
+                const overlay = document.getElementById('dice-overlay');
+                const overlayBox = document.getElementById('dice-overlay-box');
+                overlay.style.opacity = '0';
+                overlayBox.classList.replace('scale-100', 'scale-90');
+                
+                trigger3DRoll();
+
+                setTimeout(() => {
+                    diceResult.innerText = totalRoll;
+                    overlay.style.opacity = '1';
+                    overlayBox.classList.replace('scale-90', 'scale-100');
+                    
+                    localGameState = newState;
+                    renderBoard();
+                    
+                    isRollingAnimation = false;
+                    
+                    const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
+                    if (currentPlayer.id === myPlayerId) {
+                        handleTileLanding(currentPlayer, boardData[currentPlayer.position]);
+                    } else {
+                         renderBankUI(); 
+                    }
+                }, 1500);
+            });
+        }
+
+        // ==========================================
+        // 4. GAME MECHANICS (Hybrid)
+        // ==========================================
+        function broadcastOrLocalToast(msg, type = 'info') {
+            if (gameMode === 'online' && socket) {
+                socket.emit('broadcastToast', { msg, type });
+            } else {
+                showToast(msg, type);
+            }
+        }
+
+        function syncStateIfOnline() {
+            if (gameMode === 'online' && socket) {
+                // In a secure app, the server would calculate everything. 
+                // For this hybrid demo, we sync local state to server.
+                socket.emit('syncState', localGameState);
+            }
+        }
+
+        window.requestRoll = function() {
+            if (localGameState.players.length === 0) return;
+            const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
+            
+            if (gameMode === 'online' && currentPlayer.id !== myPlayerId) {
+                showToast("It is not your turn!", "error");
+                return;
+            }
+            if (localGameState.isAwaitingAction || isRollingAnimation) return;
+
+            if (gameMode === 'online') {
+                socket.emit('requestDiceRoll');
+            } else {
+                executeLocalRoll(currentPlayer);
+            }
+        };
+
+        function executeLocalRoll(currentPlayer) {
+            // Local Mode Roll Logic
+            if (currentPlayer.skipTurns > 0) {
+                currentPlayer.skipTurns--;
+                broadcastOrLocalToast(`${currentPlayer.name} is resting/serving time. Turns left: ${currentPlayer.skipTurns}`, 'info');
+                endTurn();
+                return;
+            }
+
+            if (currentPlayer.loan > 0) {
+                currentPlayer.loanTurns--;
+                if (currentPlayer.loanTurns <= 0) {
+                    const penaltyAmount = Math.floor(currentPlayer.loan * 1.2);
+                    currentPlayer.balance -= penaltyAmount;
+                    broadcastOrLocalToast(`Loan Default! Bank recovered ₹${penaltyAmount} from ${currentPlayer.name}.`, 'error');
+                    currentPlayer.loan = 0;
+                }
+            }
+
+            isRollingAnimation = true;
+            renderBankUI();
+
+            const overlay = document.getElementById('dice-overlay');
+            const overlayBox = document.getElementById('dice-overlay-box');
+            overlay.style.opacity = '0';
+            overlayBox.classList.replace('scale-100', 'scale-90');
+            
+            trigger3DRoll();
+
+            setTimeout(() => {
+                const totalRoll = (Math.floor(Math.random() * 6) + 1) + (Math.floor(Math.random() * 6) + 1);
+                diceResult.innerText = totalRoll;
+                overlay.style.opacity = '1';
+                overlayBox.classList.replace('scale-90', 'scale-100');
+
+                const oldPosition = currentPlayer.position;
+                currentPlayer.position = (oldPosition + totalRoll) % 36;
+                broadcastOrLocalToast(`<span class="font-bold text-white">${currentPlayer.name}</span> rolled a ${totalRoll}.`, 'info');
+
+                if (currentPlayer.position < oldPosition) {
+                    currentPlayer.balance += 1500;
+                    broadcastOrLocalToast(`${currentPlayer.name} passed START! Collected ₹1500.`, 'success');
+                }
+
+                renderBoard(); 
+                isRollingAnimation = false;
+                handleTileLanding(currentPlayer, boardData[currentPlayer.position]);
+            }, 1500);
+        }
+
+        // Shared Actions
+        function endTurn() {
+            localGameState.isAwaitingAction = false;
+            localGameState.pendingTile = null;
+            localGameState.currentPlayerIndex = (localGameState.currentPlayerIndex + 1) % localGameState.players.length;
+            syncStateIfOnline();
+            renderBankUI();
+        }
+
+        function handleTileLanding(player, tile) {
+            if (tile.type === 'property' || tile.type === 'transport' || tile.type === 'utility') {
+                if (tile.ownerId === null) {
+                    showDialog(
+                        tile.name, 
+                        `<div class="text-3xl font-black text-white mb-4">₹${tile.price}</div><div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700 flex justify-between w-full"><span class="text-slate-400 font-bold uppercase">Base Rent</span><span class="text-green-400 font-black">₹${tile.rent}</span></div>`,
+                        [
+                            { label: 'Pass', color: 'bg-slate-700 hover:bg-slate-600', onClick: () => { closeDialog(); endTurn(); } },
+                            { label: player.balance < tile.price ? 'Not Enough Funds' : 'Buy Property', color: 'bg-green-600 hover:bg-green-500', disabled: player.balance < tile.price, onClick: window.buyProperty }
+                        ],
+                        tile.color
+                    );
+                } 
+                else if (tile.ownerId !== player.id) {
+                    const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                    if (player.balance >= tile.rent) {
+                        player.balance -= tile.rent;
+                        owner.balance += tile.rent;
+                        broadcastOrLocalToast(`${player.name} paid ₹${tile.rent} rent to ${owner.name}.`, 'error');
+                    } else {
+                        owner.balance += player.balance;
+                        player.balance = 0;
+                        broadcastOrLocalToast(`${player.name} went bankrupt paying ${owner.name}!`, 'error');
+                    }
+                    endTurn();
+                } 
+                else {
+                    broadcastOrLocalToast(`You landed on your own property (${tile.name}).`, 'info');
+                    endTurn();
+                }
+            } 
+            else if (tile.type === 'tax') triggerTax(player, tile);
+            else if (tile.type === 'chance') triggerChance(player);
+            else if (tile.id === 9) triggerJail(player);
+            else if (tile.id === 18) triggerSportsClub(player);
+            else if (tile.id === 27) triggerRestHouse(player);
+            else endTurn(); 
+        }
+
+        window.buyProperty = function() {
+            const player = localGameState.players[localGameState.currentPlayerIndex];
+            const tile = localGameState.pendingTile || boardData[player.position];
+            if (player.balance >= tile.price) {
+                player.balance -= tile.price;
+                tile.ownerId = player.id;
+                
+                // Update local boardData definition so rendering works
+                const actualTile = boardData.find(t => t.id === tile.id);
+                if(actualTile) actualTile.ownerId = player.id;
+
+                broadcastOrLocalToast(`${player.name} bought ${tile.name} for ₹${tile.price}.`, 'success');
+                closeDialog();
+                renderBoard(); 
+                endTurn();
+            }
+        };
+
+        function triggerTax(player, tile) {
+            if (tile.id === 35) {
+                player.balance -= 50;
+                broadcastOrLocalToast(`${player.name} paid ₹50 Custom Duty.`, 'error');
+            } else { 
+                const penalty = Math.max(2000, Math.floor(player.balance * 0.10));
+                player.balance -= penalty;
+                broadcastOrLocalToast(`Audited! ${player.name} paid ₹${penalty} in taxes.`, 'error');
+            }
+            endTurn();
+        }
+
+        function triggerChance(player) {
+            const roll = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+            let msg = `Market Event (Rolled ${roll}): `;
+            let type = 'info';
+
+            if (roll >= 2 && roll <= 4) {
+                const penalty = Math.floor(player.balance * 0.10);
+                player.balance -= penalty; msg += `Crash! ${player.name} lost ₹${penalty}.`; type = 'error';
+            } else if (roll >= 5 && roll <= 8) {
+                player.balance += 1500; msg += `Dividend! ${player.name} got ₹1500.`; type = 'success';
+            } else if (roll >= 9 && roll <= 11) {
+                player.balance += 3000; msg += `VC Fund! ${player.name} got ₹3000.`; type = 'success';
+            } else if (roll === 12) {
+                let leader = localGameState.players.reduce((prev, curr) => (prev.balance > curr.balance) ? prev : curr);
+                if (leader.id === player.id) { msg += `${player.name} leads, nothing to steal.`; } 
+                else {
+                    const steal = Math.min(1000, leader.balance);
+                    leader.balance -= steal; player.balance += steal;
+                    msg += `${player.name} stole ₹${steal} from ${leader.name}.`; type = 'success';
+                }
+            }
+            broadcastOrLocalToast(msg, type); endTurn();
+        }
+
+        function triggerJail(player) {
+            showDialog("JAIL (WHITE COLLAR)", "Your assets are frozen. How will you proceed?", [
+                { label: 'Pay Bribe (₹5000)', color: 'bg-red-600 hover:bg-red-500', disabled: player.balance < 5000, onClick: () => { player.balance -= 5000; broadcastOrLocalToast(`${player.name} paid ₹5000 bribe.`, "info"); closeDialog(); endTurn(); } },
+                { label: 'Serve Time', color: 'bg-slate-700 hover:bg-slate-600', onClick: () => { player.skipTurns = 2; broadcastOrLocalToast(`${player.name} serving 2 turns in Jail.`, "error"); closeDialog(); endTurn(); } }
+            ], 'bg-red-900/50');
+        }
+
+        function triggerRestHouse(player) {
+            showDialog("REST HOUSE", "Take a corporate wellness retreat? Earn ₹1000 per turn skipped.", [
+                { label: 'Skip 1 Turn (+₹1000)', color: 'bg-teal-600 hover:bg-teal-500', onClick: () => { player.skipTurns = 1; player.balance += 1000; broadcastOrLocalToast(`${player.name} rests 1 turn. Got ₹1000.`, "success"); closeDialog(); endTurn(); } },
+                { label: 'Skip 2 Turns (+₹2000)', color: 'bg-teal-600 hover:bg-teal-500', onClick: () => { player.skipTurns = 2; player.balance += 2000; broadcastOrLocalToast(`${player.name} rests 2 turns. Got ₹2000.`, "success"); closeDialog(); endTurn(); } },
+                { label: 'Keep Moving', color: 'bg-slate-700 hover:bg-slate-600', onClick: () => { closeDialog(); endTurn(); } }
+            ], 'bg-teal-900/50');
+        }
+
+        function triggerSportsClub(player) {
+            showDialog("SPORTS CLUB", "Welcome to the club. Pay your dues or challenge a rival?", [
+                { label: 'Pay Dues (₹500)', color: 'bg-slate-700 hover:bg-slate-600', disabled: player.balance < 500, onClick: () => { player.balance -= 500; broadcastOrLocalToast(`${player.name} paid ₹500 club dues.`, 'info'); closeDialog(); endTurn(); } },
+                { label: 'Wager ₹2000', color: 'bg-blue-600 hover:bg-blue-500', disabled: player.balance < 2000, onClick: () => {
+                    const rivals = localGameState.players.filter(p => p.id !== player.id && p.balance >= 2000);
+                    if (rivals.length === 0) { broadcastOrLocalToast("No rivals have enough money to wager!", "error"); closeDialog(); endTurn(); return; }
+                    const rival = rivals[Math.floor(Math.random() * rivals.length)];
+                    const myRoll = Math.floor(Math.random()*6)+1, rivalRoll = Math.floor(Math.random()*6)+1;
+                    
+                    if (myRoll > rivalRoll) { rival.balance -= 2000; player.balance += 2000; broadcastOrLocalToast(`${player.name} rolled ${myRoll} vs ${rival.name}'s ${rivalRoll}. Won ₹2000!`, 'success'); } 
+                    else if (rivalRoll > myRoll) { player.balance -= 2000; rival.balance += 2000; broadcastOrLocalToast(`${player.name} rolled ${myRoll} vs ${rival.name}'s ${rivalRoll}. Lost ₹2000!`, 'error'); } 
+                    else { player.balance -= 2000; rival.balance -= 2000; broadcastOrLocalToast(`Tie (${myRoll})! The Bank keeps the ₹4000 pot.`, 'error'); }
+                    closeDialog(); endTurn();
+                } }
+            ], 'bg-blue-900/50');
+        }
+
+        // Host controls
+        window.takeLoan = function() {
+            const playerId = document.getElementById('loan-player-select').value;
+            const amount = parseInt(document.getElementById('loan-amount').value);
+            const player = localGameState.players.find(p => p.id === playerId || p.id == playerId); // string/int check
+            
+            if (!amount || amount < 500) return alert("Minimum loan amount is ₹500.");
+            if (player.loan > 0) return alert("You must repay your current loan before taking another.");
+            
+            const turns = Math.max(3, Math.ceil(amount / 1000) * 3);
+            player.balance += amount; player.loan = amount; player.loanTurns = turns;
+            
+            broadcastOrLocalToast(`Bank issued ₹${amount} loan to ${player.name} for ${turns} turns.`, 'info');
+            document.getElementById('loan-amount').value = '';
+            syncStateIfOnline();
+            renderBankUI();
+        };
+
+        window.repayLoan = function() {
+            const playerId = document.getElementById('loan-player-select').value;
+            const player = localGameState.players.find(p => p.id === playerId || p.id == playerId);
+            
+            if (player.loan <= 0) return alert(`${player.name} does not have an active loan.`);
+            if (player.balance < player.loan) return alert(`${player.name} does not have enough balance to repay the loan.`);
+            
+            player.balance -= player.loan; player.loan = 0; player.loanTurns = 0;
+            broadcastOrLocalToast(`${player.name} successfully repaid their loan.`, 'success');
+            syncStateIfOnline();
+            renderBankUI();
+        };
+
+        window.handleBankTransaction = function(type) {
+            const playerId = document.getElementById('bank-player-select').value;
+            const amount = parseInt(document.getElementById('bank-amount').value);
+            const player = localGameState.players.find(p => p.id === playerId || p.id == playerId);
+            
+            if (!amount || amount <= 0) return alert("Please enter a valid amount.");
+            if (type === 'add') { player.balance += amount; broadcastOrLocalToast(`Bank paid ₹${amount} to ${player.name}.`, 'success'); } 
+            else if (type === 'deduct') { player.balance -= amount; broadcastOrLocalToast(`Bank charged ₹${amount} from ${player.name}.`, 'error'); }
+            
+            document.getElementById('bank-amount').value = ''; 
+            syncStateIfOnline();
+            renderBankUI();
+        };
+
+        // --- 5. UI UTILITIES ---
+        function showToast(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            let borderCol = 'border-blue-500/80', bgCol = 'bg-blue-900/20', textCol = 'text-blue-100';
+            if(type === 'success') { borderCol = 'border-green-500/80'; bgCol = 'bg-green-900/20'; textCol = 'text-green-100'; } 
+            else if (type === 'error') { borderCol = 'border-red-500/80'; bgCol = 'bg-red-900/20'; textCol = 'text-red-100'; }
+
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            logEntry.className = `chat-animate border-l-2 ${borderCol} ${bgCol} pl-2 py-1.5 pr-2 rounded-r shadow-sm text-[8px] lg:text-[10px] font-medium ${textCol} flex flex-col gap-0.5 w-[95%]`;
+            logEntry.innerHTML = `<span class="text-slate-500 text-[6px] lg:text-[7px] leading-none">${time}</span><span class="leading-snug">${message}</span>`;
+            
+            activityLog.appendChild(logEntry);
+            setTimeout(() => { activityLog.scrollTop = activityLog.scrollHeight; }, 50);
+        }
+
+        function showDialog(title, descHTML, buttons, headerColorClass = 'bg-slate-800') {
+            localGameState.isAwaitingAction = true;
+            renderBankUI(); 
+            
+            modalTitle.innerText = title;
+            modalDesc.innerHTML = descHTML;
+            modalHeader.className = `p-6 border-b border-slate-800 text-center flex flex-col items-center justify-center min-h-[6rem] ${headerColorClass}`;
+            
+            modalButtons.innerHTML = '';
+            buttons.forEach(btn => {
+                const button = document.createElement('button');
+                button.className = `flex-1 py-3 text-white font-black text-xs uppercase rounded-lg shadow-lg transition-all active:scale-95 ${btn.color}`;
+                button.innerText = btn.label;
+                if (btn.disabled) {
+                    button.disabled = true;
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                } else {
+                    button.onclick = btn.onClick;
+                }
+                modalButtons.appendChild(button);
+            });
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeDialog() {
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        // --- 6. BOARD RENDERING ---
+        function getGridPosition(index) {
+            if (index >= 0 && index <= 9) return `grid-row: 1; grid-column: ${index + 1};`;
+            if (index >= 10 && index <= 18) return `grid-row: ${index - 8}; grid-column: 10;`;
+            if (index >= 19 && index <= 27) return `grid-row: 10; grid-column: ${28 - index};`;
+            if (index >= 28 && index <= 35) return `grid-row: ${37 - index}; grid-column: 1;`;
+        }
+
+        function renderBoard() {
+            const tiles = boardContainer.querySelectorAll('.board-tile');
+            tiles.forEach(tile => tile.remove());
+
+            boardData.forEach((tile, index) => {
+                const tileElement = document.createElement('div');
+                
+                let ownershipBorder = 'border-slate-800';
+                if (tile.ownerId !== null && tile.ownerId !== undefined) {
+                    const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                    if(owner) {
+                        const borderColor = owner.colorClass.split('-')[1]; 
+                        ownershipBorder = `border-${borderColor}-500 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]`;
+                    }
+                }
+
+                tileElement.className = `board-tile border bg-[#141b2d] relative overflow-hidden flex flex-col justify-between ${ownershipBorder}`;
+                tileElement.style = getGridPosition(index);
+
+                let rotationClass = "";
+                if (index >= 10 && index <= 17) rotationClass = "-rotate-90";
+                if (index >= 28 && index <= 35) rotationClass = "rotate-90";
+                if (index >= 19 && index <= 26) rotationClass = "rotate-180";
+
+                const displayPrice = tile.price ? `₹${tile.price}` : tile.stringPrice;
+
+                if (tile.type === 'corner') {
+                     tileElement.innerHTML = `
+                        <div class="absolute inset-0 flex flex-col items-center justify-center font-black bg-[#1e293b] text-slate-300 p-0.5 md:p-1 z-10 border border-slate-700/50">
+                            <div class="tracking-widest uppercase text-center text-[6px] md:text-[8px] lg:text-[10px] leading-tight">${tile.name}</div>
+                            <div class="text-[5px] md:text-[6px] lg:text-[7px] font-normal mt-0.5 md:mt-1 lg:mt-2 text-slate-400 uppercase text-center tracking-widest">${displayPrice}</div>
+                        </div>
+                    `;
+                } else {
+                    let ownerIndicator = '';
+                    if (tile.ownerId !== null && tile.ownerId !== undefined) {
+                         const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                         if(owner) ownerIndicator = `<div class="absolute bottom-0 left-0 right-0 h-1 ${owner.colorClass.split(' ')[0]}"></div>`;
+                    }
+
+                    tileElement.innerHTML = `
+                        <div class="absolute inset-0 w-full h-full flex flex-col origin-center transform ${rotationClass} z-10">
+                            <div class="h-1.5 md:h-2 lg:h-4 w-full shrink-0 ${tile.color}"></div>
+                            <div class="flex-grow flex flex-col items-center justify-center font-bold text-[4px] md:text-[6px] lg:text-[8px] px-0.5 leading-tight uppercase text-slate-300 tracking-wider text-center">
+                                <span>${tile.name}</span>
+                                ${tile.type === 'chance' ? '<span class="text-[8px] md:text-[10px] lg:text-lg text-red-500 font-black mt-0.5 leading-none [text-shadow:0_0_8px_rgba(239,68,68,0.8)]">?</span>' : ''}
+                            </div>
+                            <div class="h-2.5 md:h-3 lg:h-5 w-full shrink-0 flex items-center justify-center border-t border-slate-800 text-[3px] md:text-[5px] lg:text-[7px] font-semibold text-slate-500 tracking-widest bg-[#0f172a]">${displayPrice}</div>
+                            ${ownerIndicator}
+                        </div>
+                    `;
+                }
+
+                const playersOnTile = localGameState.players.filter(p => p.position === index);
+                if (playersOnTile.length > 0) {
+                    const tokenContainer = document.createElement('div');
+                    tokenContainer.className = "absolute inset-0 z-20 flex flex-wrap justify-center items-center gap-0.5 p-1 pointer-events-none bg-black/40 backdrop-blur-[1px]";
+                    playersOnTile.forEach(p => {
+                        const token = document.createElement('div');
+                        token.className = `w-1.5 h-1.5 md:w-2 md:h-2 lg:w-3 lg:h-3 rounded-full border border-white/80 shadow-[0_0_8px_rgba(255,255,255,0.5)] ${p.colorClass.split(' ')[0]}`; 
+                        tokenContainer.appendChild(token);
+                    });
+                    tileElement.appendChild(tokenContainer);
+                }
+                boardContainer.appendChild(tileElement);
+            });
+        }
+
+        function renderBankUI() {
+            playerListContainer.innerHTML = '';
+            
+            const isMyTurn = gameMode === 'local' || (localGameState.players.length > 0 && localGameState.players[localGameState.currentPlayerIndex].id === myPlayerId);
+            const disabled = localGameState.isAwaitingAction || isRollingAnimation || !isMyTurn;
+            
+            const btnRollDesktop = document.getElementById('btn-roll-desktop');
+            const btnRollMobile = document.getElementById('btn-roll-mobile');
+            
+            btnRollDesktop.disabled = disabled;
+            btnRollMobile.disabled = disabled;
+
+            if (!isMyTurn && !isRollingAnimation) {
+                 turnIndicator.innerText = `Waiting for ${localGameState.players[localGameState.currentPlayerIndex]?.name || 'Player'}...`;
+            } else {
+                 turnIndicator.innerText = localGameState.isAwaitingAction ? "Waiting for Action..." : (isRollingAnimation ? "Rolling..." : "Your Turn!");
+            }
+
+            const playerSelects = [document.getElementById('loan-player-select'), document.getElementById('bank-player-select')];
+            const currentSelected = playerSelects.map(s => s ? s.value : null);
+            playerSelects.forEach(s => { if(s) s.innerHTML = ''; });
+
+            localGameState.players.forEach((player, index) => {
+                const isActive = index === localGameState.currentPlayerIndex;
+                const btn = document.createElement('div');
+                const bgColor = player.colorClass.split(' ')[0];
+                const shadowColor = bgColor.replace('bg-', '');
+                
+                let skipBadge = player.skipTurns > 0 ? `<span class="bg-slate-700 text-[8px] px-1 rounded ml-1 border border-slate-500">Zz</span>` : '';
+                let loanInfo = player.loan > 0 ? `<div class="text-[7px] lg:text-[9px] text-red-400 font-bold mt-0.5">Loan: ₹${player.loan} (${player.loanTurns} left)</div>` : '';
+
+                btn.className = `flex items-start justify-between px-2 lg:px-4 py-1.5 lg:py-3 rounded border transition-all ${isActive ? `border-${shadowColor} bg-slate-800 scale-[1.02] shadow-[0_0_15px_var(--tw-shadow-color)] shadow-${shadowColor}` : 'border-slate-700 bg-slate-800/50 opacity-70'}`;
+                
+                const youTag = (gameMode === 'online' && player.id === myPlayerId) ? '(You)' : '';
+
+                btn.innerHTML = `
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-1.5 lg:gap-2 font-bold text-[8px] lg:text-xs">
+                            <div class="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full ${bgColor}"></div>
+                            <span class="text-slate-200 truncate max-w-[80px] lg:max-w-[120px]">${player.name} ${youTag}</span>
+                            ${skipBadge}
+                        </div>
+                        ${loanInfo}
+                    </div>
+                    <span class="font-black text-white text-[8px] lg:text-xs tracking-widest mt-0.5">₹${player.balance.toLocaleString('en-IN')}</span>
+                `;
+                playerListContainer.appendChild(btn);
+
+                playerSelects.forEach(s => {
+                    if(s) {
+                        const option = document.createElement('option');
+                        option.value = player.id;
+                        option.textContent = player.name;
+                        s.appendChild(option);
+                    }
+                });
+            });
+
+            playerSelects.forEach((s, i) => { if(s && currentSelected[i]) s.value = currentSelected[i]; });
+        }
+
+        // --- 7. THREE.JS BOILERPLATE ---
+        let scene, camera, renderer, world, diceMeshes = [], diceBodies = [];
+
+        function init3D() {
+            const container = document.getElementById('dice-3d-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(0, 10, 0); 
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+            const light = new THREE.DirectionalLight(0xffffff, 2);
+            light.position.set(2, 10, 2); light.castShadow = true; scene.add(light);
+
+            const boardMesh = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.ShadowMaterial({ opacity: 0.5 }));
+            boardMesh.rotation.x = -Math.PI * 0.5; boardMesh.receiveShadow = true; scene.add(boardMesh);
+
+            world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0) });
+            world.defaultContactMaterial.restitution = 0.6; 
+            const floorBody = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane() });
+            floorBody.quaternion.setFromEuler(-Math.PI * 0.5, 0, 0); world.addBody(floorBody);
+
+            const wallShape = new CANNON.Plane();
+            const w1 = new CANNON.Body({ mass: 0, shape: wallShape }); w1.position.set(0,0,3); w1.quaternion.setFromEuler(0, Math.PI, 0); world.addBody(w1);
+            const w2 = new CANNON.Body({ mass: 0, shape: wallShape }); w2.position.set(0,0,-3); world.addBody(w2);
+            const w3 = new CANNON.Body({ mass: 0, shape: wallShape }); w3.position.set(4,0,0); w3.quaternion.setFromEuler(0, -Math.PI/2, 0); world.addBody(w3);
+            const w4 = new CANNON.Body({ mass: 0, shape: wallShape }); w4.position.set(-4,0,0); w4.quaternion.setFromEuler(0, Math.PI/2, 0); world.addBody(w4);
+
+            class Dice extends THREE.Mesh {
+                constructor(size=1.2) {
+                    const geometry = new RoundedBoxGeometry(size, size, size, 4, 0.15);
+                    const material = new THREE.MeshStandardMaterial({ color: "#0f172a", metalness: 0.3, roughness: 0.4 });
+                    super(geometry, material);
+                    this.castShadow = true; this.receiveShadow = true; this.createDots(size);
+                }
+                createDots(size) {
+                    const dotGeo = new THREE.SphereGeometry(0.1, 16, 16);
+                    const dotMat = new THREE.MeshStandardMaterial({ color: "#38bdf8", emissive: "#38bdf8", emissiveIntensity: 0.8 });
+                    const half = size/2 + 0.01;
+                    const addDot = (x,y,z) => { const dot = new THREE.Mesh(dotGeo, dotMat); dot.position.set(x,y,z); this.add(dot); };
+                    addDot(0,0,half); // 1
+                    addDot(-0.3,-0.3,-half); addDot(0.3,0.3,-half); // 2
+                    addDot(half,-0.3,-0.3); addDot(half,0,0); addDot(half,0.3,0.3); // 3
+                    addDot(-half,-0.3,-0.3); addDot(-half,-0.3,0.3); addDot(-half,0.3,-0.3); addDot(-half,0.3,0.3); // 4
+                    addDot(-0.3,half,-0.3); addDot(-0.3,half,0.3); addDot(0.3,half,-0.3); addDot(0.3,half,0.3); addDot(0,half,0); // 5
+                    addDot(-0.3,-half,-0.35); addDot(-0.3,-half,0); addDot(-0.3,-half,0.35); addDot(0.3,-half,-0.35); addDot(0.3,-half,0); addDot(0.3,-half,0.35); // 6
+                }
+            }
+
+            function addDiceObj(x, z) {
+                const dice = new Dice(); dice.position.set(x, 2, z); scene.add(dice);
+                const body = new CANNON.Body({ mass: 1, shape: new CANNON.Box(new CANNON.Vec3(0.6, 0.6, 0.6)) });
+                body.position.set(x, 2, z); world.addBody(body);
+                diceMeshes.push(dice); diceBodies.push(body);
+            }
+            addDiceObj(-1.5, 0); addDiceObj(1.5, 0);
+            animate3D();
+        }
+
+        function trigger3DRoll() {
+            if(!world) return;
+            diceBodies.forEach((body, index) => {
+                body.velocity.setZero(); body.angularVelocity.setZero();
+                body.position.set(index === 0 ? -1.5 : 1.5, 4 + Math.random(), 0);
+                body.quaternion.setFromEuler(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                body.applyImpulse(new CANNON.Vec3((index===0?1:-1) * (2+Math.random()*4), -2, (Math.random()-0.5)*4), new CANNON.Vec3(Math.random(), Math.random(), Math.random()));
+            });
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            if(world) world.step(1/60);
+            for(let i=0; i<diceMeshes.length; i++){
+                diceMeshes[i].position.copy(diceBodies[i].position);
+                diceMeshes[i].quaternion.copy(diceBodies[i].quaternion);
+            }
+            if(renderer) renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const container = document.getElementById('dice-3d-container');
+            if(camera && renderer && container.clientWidth > 0) {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight);
+            }
+        });
+    </script>
+</body>
+</html>
