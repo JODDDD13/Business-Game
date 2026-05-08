@@ -259,7 +259,7 @@
         
         let gameMode = 'local'; 
         let myPlayerId = 'local_host'; 
-        let hostId = null; // Track who the host is online
+        let hostId = null; 
         let currentRoomCode = null;
         let isRollingAnimation = false;
 
@@ -365,7 +365,6 @@
 
         window.backToModes = function() {
             window.selectMode('online-action'); 
-            // If they were in local, they shouldn't hit this specific back button, but just in case:
             document.getElementById('mode-selection').classList.remove('hidden');
             document.getElementById('online-action-selection').classList.add('hidden');
             document.getElementById('lobby-subtitle').innerText = 'Select Game Mode';
@@ -408,7 +407,6 @@
             if (!name) return alert("Please enter your name.");
             
             socket.emit('createRoom', name);
-            // UI switches to Lobby inside socket.on('roomCreated')
         };
 
         window.joinOnlineRoom = function() {
@@ -425,7 +423,7 @@
         };
 
         window.leaveLobby = function() {
-            window.location.reload(); // Quickest way to sever socket and reset UI
+            window.location.reload(); 
         };
 
         window.kickPlayer = function(targetId) {
@@ -441,7 +439,6 @@
                 const isMe = p.id === myPlayerId;
                 const isHostDisplay = p.id === hostId ? '<span class="ml-2 text-[8px] bg-purple-600 px-1.5 py-0.5 rounded uppercase tracking-widest">Host</span>' : '';
                 
-                // Only host can kick, and host cannot kick themselves
                 let kickBtn = '';
                 if (myPlayerId === hostId && !isMe) {
                     kickBtn = `<button onclick="window.kickPlayer('${p.id}')" class="text-red-400 hover:text-red-300 text-[10px] font-bold uppercase underline">Kick</button>`;
@@ -482,7 +479,6 @@
             
             document.getElementById('display-room-code').innerText = code;
             
-            // Put room code in Bank header later
             document.getElementById('bank-room-code').innerText = `[${code}]`;
             document.getElementById('bank-room-code').classList.remove('hidden');
         }
@@ -590,6 +586,7 @@
             }
         }
 
+        // --- CRITICAL FIX: Network deadlock logic & pre-roll penalties ---
         window.requestRoll = function() {
             if (localGameState.players.length === 0) return;
             const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
@@ -600,22 +597,17 @@
             }
             if (localGameState.isAwaitingAction || isRollingAnimation) return;
 
-            if (gameMode === 'online') {
-                socket.emit('requestDiceRoll');
-            } else {
-                executeLocalRoll(currentPlayer);
-            }
-        };
+            isRollingAnimation = true; 
+            renderBankUI();
 
-        function executeLocalRoll(currentPlayer) {
+            // PRE-ROLL LOGIC: Check skips and loans BEFORE communicating with server
+            let turnEndedEarly = false;
+
             if (currentPlayer.skipTurns > 0) {
                 currentPlayer.skipTurns--;
                 broadcastOrLocalToast(`${currentPlayer.name} is resting/serving time. Turns left: ${currentPlayer.skipTurns}`, 'info');
-                endTurn();
-                return;
-            }
-
-            if (currentPlayer.loan > 0) {
+                turnEndedEarly = true;
+            } else if (currentPlayer.loan > 0) {
                 currentPlayer.loanTurns--;
                 if (currentPlayer.loanTurns <= 0) {
                     const penaltyAmount = Math.floor(currentPlayer.loan * 1.2);
@@ -625,9 +617,23 @@
                 }
             }
 
-            isRollingAnimation = true;
-            renderBankUI();
+            if (turnEndedEarly) {
+                isRollingAnimation = false;
+                endTurn();
+                return;
+            }
 
+            // Sync state so server knows about the deducted loan turns
+            syncStateIfOnline(); 
+
+            if (gameMode === 'online') {
+                socket.emit('requestDiceRoll');
+            } else {
+                executeLocalRoll(currentPlayer);
+            }
+        };
+
+        function executeLocalRoll(currentPlayer) {
             const overlay = document.getElementById('dice-overlay');
             const overlayBox = document.getElementById('dice-overlay-box');
             overlay.style.opacity = '0';
@@ -656,7 +662,6 @@
             }, 1500);
         }
 
-        // Shared Actions
         function endTurn() {
             localGameState.isAwaitingAction = false;
             localGameState.pendingTile = null;
