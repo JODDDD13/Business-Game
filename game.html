@@ -78,8 +78,7 @@
                         <option value="8">8 Players (Max)</option>
                     </select>
                 </div>
-                <div class="w-full flex flex-col gap-3 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="player-inputs-container">
-                    </div>
+                <div class="w-full flex flex-col gap-3 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="player-inputs-container"></div>
                 <div class="flex gap-2">
                     <button onclick="window.backToModes()" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
                     <button onclick="window.startLocalGame()" class="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95">Start Game</button>
@@ -118,18 +117,15 @@
                     <p id="display-room-code" class="text-3xl font-black text-white tracking-[0.2em]">----</p>
                 </div>
 
-                <div class="w-full flex flex-col gap-2 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-1" id="lobby-players-container">
-                    </div>
+                <div class="w-full flex flex-col gap-2 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-1" id="lobby-players-container"></div>
 
                 <button onclick="window.startOnlineGame()" id="btn-start-online" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95 hidden">
                     Start Game
                 </button>
                 
                 <p id="lobby-status" class="text-[10px] text-slate-400 mt-3 italic text-center"></p>
-                
                 <button onclick="window.leaveLobby()" class="mt-4 text-xs text-slate-500 hover:text-white underline transition-colors text-center w-full">Leave Room</button>
             </div>
-
         </div>
     </div>
 
@@ -150,7 +146,6 @@
         <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-72 pointer-events-none"></div>
 
         <div id="left-panel" class="w-full lg:w-[320px] xl:w-[340px] h-auto lg:h-full max-h-[35vh] lg:max-h-[95vh] bg-[#0d1321] border border-slate-700 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex flex-col shrink-0 z-20">
-            
             <div class="p-3 lg:p-6 text-left border-b border-slate-800 flex justify-between items-center lg:block shrink-0">
                 <div>
                     <h2 class="text-xl lg:text-3xl font-black tracking-widest text-white uppercase [text-shadow:0_0_8px_rgba(255,255,255,0.5)]">The Bank</h2>
@@ -191,16 +186,7 @@
         </div>
 
         <div id="game-board" class="aspect-square w-full max-w-[95vw] lg:w-auto lg:h-full lg:max-h-[95vh] grid grid-cols-10 grid-rows-10 bg-[#0f172a] border border-slate-700 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden shrink-0 relative">
-            
-             <div id="connecting-overlay" class="absolute inset-0 z-50 bg-[#0f172a]/80 backdrop-blur-sm hidden items-center justify-center">
-                 <div class="flex flex-col items-center">
-                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
-                    <p class="text-white font-bold tracking-widest uppercase text-sm" id="overlay-msg">Waiting for Server...</p>
-                 </div>
-             </div>
-
             <div class="col-start-2 col-end-10 row-start-2 row-end-10 bg-[#0b101e] flex flex-col p-2 md:p-6 lg:p-8 relative border border-slate-800 overflow-hidden">
-                
                 <div class="mb-2 md:mb-4 text-center shrink-0 pt-2">
                     <h1 class="text-3xl md:text-5xl lg:text-7xl font-black tracking-[0.1em] italic text-red-500 [text-shadow:0_0_10px_#ef4444,0_0_20px_#ef4444,0_0_40px_#dc2626]">BUSINESS</h1>
                     <p class="text-[6px] md:text-[10px] lg:text-xs text-slate-400 font-bold tracking-[0.3em] uppercase mt-1">Corporate Edition</p>
@@ -267,7 +253,8 @@
             players: [],
             currentPlayerIndex: 0,
             isAwaitingAction: false,
-            gameStarted: false
+            gameStarted: false,
+            boardOwnership: {} // FIX: Syncs ownership properties across network
         };
 
         const PLAYER_COLORS = [
@@ -275,42 +262,43 @@
             "bg-purple-500", "bg-cyan-400 text-slate-900", "bg-pink-500", "bg-orange-500"
         ];
 
+        // REMOVED ownerId from static array. It is now tracked dynamically in localGameState.boardOwnership
         const boardData = [
             { id: 0, name: "START", type: "corner", stringPrice: "Collect ₹1500" },
-            { id: 1, name: "Mumbai", type: "property", color: "bg-yellow-400", price: 8500, rent: 800, ownerId: null },
-            { id: 2, name: "Ahmedabad", type: "property", color: "bg-yellow-400", price: 4000, rent: 400, ownerId: null },
-            { id: 3, name: "Indore", type: "property", color: "bg-yellow-400", price: 1500, rent: 150, ownerId: null },
-            { id: 4, name: "Motor Boat", type: "transport", color: "bg-slate-500", price: 5500, rent: 500, ownerId: null },
-            { id: 5, name: "Pune", type: "property", color: "bg-green-500", price: 2000, rent: 200, ownerId: null },
+            { id: 1, name: "Mumbai", type: "property", color: "bg-yellow-400", price: 8500, rent: 800 },
+            { id: 2, name: "Ahmedabad", type: "property", color: "bg-yellow-400", price: 4000, rent: 400 },
+            { id: 3, name: "Indore", type: "property", color: "bg-yellow-400", price: 1500, rent: 150 },
+            { id: 4, name: "Motor Boat", type: "transport", color: "bg-slate-500", price: 5500, rent: 500 },
+            { id: 5, name: "Pune", type: "property", color: "bg-green-500", price: 2000, rent: 200 },
             { id: 6, name: "Wealth Tax", type: "tax", color: "bg-slate-700", stringPrice: "Pay 10%" },
-            { id: 7, name: "Bangalore", type: "property", color: "bg-green-500", price: 4000, rent: 400, ownerId: null },
+            { id: 7, name: "Bangalore", type: "property", color: "bg-green-500", price: 4000, rent: 400 },
             { id: 8, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
             { id: 9, name: "JAIL", type: "corner", stringPrice: "No Rent" },
-            { id: 10, name: "Jaipur", type: "property", color: "bg-green-500", price: 3000, rent: 300, ownerId: null },
-            { id: 11, name: "New Delhi", type: "property", color: "bg-red-500", price: 6000, rent: 600, ownerId: null },
-            { id: 12, name: "Chandigarh", type: "property", color: "bg-red-500", price: 2500, rent: 250, ownerId: null },
-            { id: 13, name: "BEST Bus", type: "transport", color: "bg-slate-500", price: 3500, rent: 350, ownerId: null },
-            { id: 14, name: "Electric Co.", type: "utility", color: "bg-slate-500", price: 2500, rent: 250, ownerId: null },
-            { id: 15, name: "Chennai", type: "property", color: "bg-blue-500", price: 7000, rent: 700, ownerId: null },
-            { id: 16, name: "Air India", type: "transport", color: "bg-slate-500", price: 10500, rent: 1050, ownerId: null },
-            { id: 17, name: "Railway", type: "transport", color: "bg-slate-500", price: 9500, rent: 950, ownerId: null },
+            { id: 10, name: "Jaipur", type: "property", color: "bg-green-500", price: 3000, rent: 300 },
+            { id: 11, name: "New Delhi", type: "property", color: "bg-red-500", price: 6000, rent: 600 },
+            { id: 12, name: "Chandigarh", type: "property", color: "bg-red-500", price: 2500, rent: 250 },
+            { id: 13, name: "BEST Bus", type: "transport", color: "bg-slate-500", price: 3500, rent: 350 },
+            { id: 14, name: "Electric Co.", type: "utility", color: "bg-slate-500", price: 2500, rent: 250 },
+            { id: 15, name: "Chennai", type: "property", color: "bg-blue-500", price: 7000, rent: 700 },
+            { id: 16, name: "Air India", type: "transport", color: "bg-slate-500", price: 10500, rent: 1050 },
+            { id: 17, name: "Railway", type: "transport", color: "bg-slate-500", price: 9500, rent: 950 },
             { id: 18, name: "SPORTS CLUB", type: "corner", stringPrice: "Wager" },
-            { id: 19, name: "Water Works", type: "utility", color: "bg-slate-500", price: 3000, rent: 300, ownerId: null },
-            { id: 20, name: "Kolkata", type: "property", color: "bg-blue-500", price: 6500, rent: 650, ownerId: null },
-            { id: 21, name: "Hyderabad", type: "property", color: "bg-blue-500", price: 3500, rent: 350, ownerId: null },
+            { id: 19, name: "Water Works", type: "utility", color: "bg-slate-500", price: 3000, rent: 300 },
+            { id: 20, name: "Kolkata", type: "property", color: "bg-blue-500", price: 6500, rent: 650 },
+            { id: 21, name: "Hyderabad", type: "property", color: "bg-blue-500", price: 3500, rent: 350 },
             { id: 22, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
-            { id: 23, name: "Darjeeling", type: "property", color: "bg-fuchsia-500", price: 2500, rent: 250, ownerId: null },
+            { id: 23, name: "Darjeeling", type: "property", color: "bg-fuchsia-500", price: 2500, rent: 250 },
             { id: 24, name: "Income Tax", type: "tax", color: "bg-slate-700", stringPrice: "Pay 10%" },
-            { id: 25, name: "Amritsar", type: "property", color: "bg-fuchsia-500", price: 3000, rent: 300, ownerId: null },
-            { id: 26, name: "Srinagar", type: "property", color: "bg-fuchsia-500", price: 5000, rent: 500, ownerId: null },
+            { id: 25, name: "Amritsar", type: "property", color: "bg-fuchsia-500", price: 3000, rent: 300 },
+            { id: 26, name: "Srinagar", type: "property", color: "bg-fuchsia-500", price: 5000, rent: 500 },
             { id: 27, name: "REST HOUSE", type: "corner", stringPrice: "Retreat" },
-            { id: 28, name: "Agra", type: "property", color: "bg-orange-500", price: 2500, rent: 250, ownerId: null },
-            { id: 29, name: "Kanpur", type: "property", color: "bg-orange-500", price: 4000, rent: 400, ownerId: null },
-            { id: 30, name: "Patna", type: "property", color: "bg-orange-500", price: 2000, rent: 200, ownerId: null },
+            { id: 28, name: "Agra", type: "property", color: "bg-orange-500", price: 2500, rent: 250 },
+            { id: 29, name: "Kanpur", type: "property", color: "bg-orange-500", price: 4000, rent: 400 },
+            { id: 30, name: "Patna", type: "property", color: "bg-orange-500", price: 2000, rent: 200 },
             { id: 31, name: "Chance", type: "chance", color: "bg-orange-500", stringPrice: "?" },
-            { id: 32, name: "Goa", type: "property", color: "bg-purple-500", price: 4000, rent: 400, ownerId: null },
-            { id: 33, name: "Ooty", type: "property", color: "bg-purple-500", price: 2500, rent: 250, ownerId: null },
-            { id: 34, name: "Shimla", type: "property", color: "bg-purple-500", price: 2000, rent: 200, ownerId: null },
+            { id: 32, name: "Goa", type: "property", color: "bg-purple-500", price: 4000, rent: 400 },
+            { id: 33, name: "Ooty", type: "property", color: "bg-purple-500", price: 2500, rent: 250 },
+            { id: 34, name: "Shimla", type: "property", color: "bg-purple-500", price: 2000, rent: 200 },
             { id: 35, name: "Custom Duty", type: "tax", color: "bg-slate-700", stringPrice: "Pay ₹50" }
         ];
 
@@ -396,6 +384,7 @@
                 });
             }
             localGameState.gameStarted = true;
+            localGameState.boardOwnership = {};
             transitionToGame();
             broadcastOrLocalToast("Local Game Started! First player, roll the dice.", "info");
         };
@@ -405,7 +394,6 @@
             if (!socket) return alert("Server not connected.");
             const name = document.getElementById('host-name-input').value.trim();
             if (!name) return alert("Please enter your name.");
-            
             socket.emit('createRoom', name);
         };
 
@@ -414,7 +402,6 @@
             const code = document.getElementById('join-code-input').value.trim();
             const name = document.getElementById('join-name-input').value.trim();
             if (!code || !name) return alert("Please enter both Room Code and Name.");
-            
             socket.emit('joinRoom', { roomCode: code, playerName: name });
         };
 
@@ -478,7 +465,6 @@
             document.getElementById('multiplayer-lobby').classList.add('flex');
             
             document.getElementById('display-room-code').innerText = code;
-            
             document.getElementById('bank-room-code').innerText = `[${code}]`;
             document.getElementById('bank-room-code').classList.remove('hidden');
         }
@@ -536,6 +522,7 @@
                 showToast("Online Game Started! Waiting for first roll...", "info");
             });
 
+            // FIX: The position update logic has been restored!
             socket.on('playDiceAnimation', (data) => {
                 if (gameMode !== 'online') return;
                 const { totalRoll, newState } = data;
@@ -555,11 +542,23 @@
                     overlayBox.classList.replace('scale-90', 'scale-100');
                     
                     localGameState = newState;
-                    renderBoard();
                     
+                    // EVERY client visually moves the active player's token
+                    const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
+                    const oldPosition = currentPlayer.position;
+                    currentPlayer.position = (oldPosition + totalRoll) % 36;
+                    
+                    if (currentPlayer.position < oldPosition) {
+                        currentPlayer.balance += 1500;
+                        if (currentPlayer.id === myPlayerId) {
+                            socket.emit('broadcastToast', { msg: `${currentPlayer.name} passed START! Collected ₹1500.`, type: 'success' });
+                        }
+                    }
+
+                    renderBoard();
                     isRollingAnimation = false;
                     
-                    const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
+                    // ONLY the active player processes what happens on that tile
                     if (currentPlayer.id === myPlayerId) {
                         handleTileLanding(currentPlayer, boardData[currentPlayer.position]);
                     } else {
@@ -586,7 +585,7 @@
             }
         }
 
-        // --- CRITICAL FIX: Network deadlock logic & pre-roll penalties ---
+        // FIX: Pre-roll logic executes and syncs before allowing a roll
         window.requestRoll = function() {
             if (localGameState.players.length === 0) return;
             const currentPlayer = localGameState.players[localGameState.currentPlayerIndex];
@@ -597,10 +596,6 @@
             }
             if (localGameState.isAwaitingAction || isRollingAnimation) return;
 
-            isRollingAnimation = true; 
-            renderBankUI();
-
-            // PRE-ROLL LOGIC: Check skips and loans BEFORE communicating with server
             let turnEndedEarly = false;
 
             if (currentPlayer.skipTurns > 0) {
@@ -618,11 +613,13 @@
             }
 
             if (turnEndedEarly) {
-                isRollingAnimation = false;
                 endTurn();
                 return;
             }
 
+            isRollingAnimation = true; 
+            renderBankUI();
+            
             // Sync state so server knows about the deducted loan turns
             syncStateIfOnline(); 
 
@@ -673,9 +670,12 @@
             renderBankUI();
         }
 
+        // FIX: Tile landing now checks global boardOwnership state
         function handleTileLanding(player, tile) {
             if (tile.type === 'property' || tile.type === 'transport' || tile.type === 'utility') {
-                if (tile.ownerId === null) {
+                const ownerId = (localGameState.boardOwnership && localGameState.boardOwnership[tile.id]) ? localGameState.boardOwnership[tile.id] : null;
+
+                if (ownerId === null) {
                     showDialog(
                         tile.name, 
                         `<div class="text-3xl font-black text-white mb-4">₹${tile.price}</div><div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700 flex justify-between w-full"><span class="text-slate-400 font-bold uppercase">Base Rent</span><span class="text-green-400 font-black">₹${tile.rent}</span></div>`,
@@ -686,8 +686,8 @@
                         tile.color
                     );
                 } 
-                else if (tile.ownerId !== player.id) {
-                    const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                else if (ownerId !== player.id) {
+                    const owner = localGameState.players.find(p => p.id === ownerId);
                     if (player.balance >= tile.rent) {
                         player.balance -= tile.rent;
                         owner.balance += tile.rent;
@@ -712,15 +712,15 @@
             else endTurn(); 
         }
 
+        // FIX: Buy property updates global boardOwnership
         window.buyProperty = function() {
             const player = localGameState.players[localGameState.currentPlayerIndex];
             const tile = localGameState.pendingTile || boardData[player.position];
             if (player.balance >= tile.price) {
                 player.balance -= tile.price;
-                tile.ownerId = player.id;
                 
-                const actualTile = boardData.find(t => t.id === tile.id);
-                if(actualTile) actualTile.ownerId = player.id;
+                if (!localGameState.boardOwnership) localGameState.boardOwnership = {};
+                localGameState.boardOwnership[tile.id] = player.id;
 
                 broadcastOrLocalToast(`${player.name} bought ${tile.name} for ₹${tile.price}.`, 'success');
                 closeDialog();
@@ -906,6 +906,7 @@
             if (index >= 28 && index <= 35) return `grid-row: ${37 - index}; grid-column: 1;`;
         }
 
+        // FIX: Renders board property ownership dynamically from global state
         function renderBoard() {
             const tiles = boardContainer.querySelectorAll('.board-tile');
             tiles.forEach(tile => tile.remove());
@@ -914,8 +915,10 @@
                 const tileElement = document.createElement('div');
                 
                 let ownershipBorder = 'border-slate-800';
-                if (tile.ownerId !== null && tile.ownerId !== undefined) {
-                    const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                const ownerId = (localGameState.boardOwnership && localGameState.boardOwnership[tile.id]) ? localGameState.boardOwnership[tile.id] : null;
+                
+                if (ownerId !== null) {
+                    const owner = localGameState.players.find(p => p.id === ownerId);
                     if(owner) {
                         const borderColor = owner.colorClass.split('-')[1]; 
                         ownershipBorder = `border-${borderColor}-500 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]`;
@@ -941,8 +944,8 @@
                     `;
                 } else {
                     let ownerIndicator = '';
-                    if (tile.ownerId !== null && tile.ownerId !== undefined) {
-                         const owner = localGameState.players.find(p => p.id === tile.ownerId);
+                    if (ownerId !== null) {
+                         const owner = localGameState.players.find(p => p.id === ownerId);
                          if(owner) ownerIndicator = `<div class="absolute bottom-0 left-0 right-0 h-1 ${owner.colorClass.split(' ')[0]}"></div>`;
                     }
 
