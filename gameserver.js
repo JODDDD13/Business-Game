@@ -38,7 +38,6 @@ function generateRoomCode() {
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // 1. HOST A ROOM
     socket.on('createRoom', (playerName) => {
         const roomCode = generateRoomCode();
         socket.join(roomCode);
@@ -61,7 +60,8 @@ io.on('connection', (socket) => {
                 isAwaitingAction: false,
                 maxPlayers: 8,
                 gameStarted: false,
-                roomCode: roomCode
+                roomCode: roomCode,
+                boardOwnership: {} // FIX: Ownership is now synced globally!
             }
         };
 
@@ -70,7 +70,6 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('toastMessage', { msg: `Room ${roomCode} created by ${playerName}.`, type: "success" });
     });
 
-    // 2. JOIN A ROOM
     socket.on('joinRoom', (data) => {
         const { roomCode, playerName } = data;
         const code = roomCode.toUpperCase();
@@ -101,7 +100,6 @@ io.on('connection', (socket) => {
         io.to(code).emit('toastMessage', { msg: `${playerName} joined the room.`, type: "info" });
     });
 
-    // 3. KICK PLAYER
     socket.on('kickPlayer', (targetId) => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
@@ -118,11 +116,10 @@ io.on('connection', (socket) => {
             io.sockets.sockets.get(targetId)?.leave(code);
 
             io.to(code).emit('gameStateUpdate', { gameState: room.gameState, hostId: room.hostId });
-            io.to(code).emit('toastMessage', { msg: `${kickedPlayer.name} was kicked from the room.`, type: "error" });
+            io.to(code).emit('toastMessage', { msg: `${kickedPlayer.name} was kicked.`, type: "error" });
         }
     });
 
-    // 4. START GAME
     socket.on('startGame', () => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
@@ -135,7 +132,6 @@ io.on('connection', (socket) => {
         io.to(code).emit('gameStarted', room.gameState);
     });
 
-    // 5. IN-GAME ACTIONS
     socket.on('requestDiceRoll', () => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
@@ -150,7 +146,7 @@ io.on('connection', (socket) => {
         io.to(code).emit('playDiceAnimation', { totalRoll: dice1 + dice2, newState: room.gameState });
     });
 
-    // BUG FIX: The server now forces a broadcast to everyone when a local state sync occurs!
+    // Forces immediate broadcast so players never desync
     socket.on('syncState', (newState) => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
@@ -170,7 +166,6 @@ io.on('connection', (socket) => {
          io.to(code).emit('gameStateUpdate', { gameState: rooms[code].gameState, hostId: rooms[code].hostId });
     });
 
-    // 6. HANDLE DISCONNECTS
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
         const code = socket.roomCode;
