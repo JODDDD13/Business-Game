@@ -61,7 +61,7 @@ io.on('connection', (socket) => {
                 maxPlayers: 8,
                 gameStarted: false,
                 roomCode: roomCode,
-                boardOwnership: {} // FIX: Ownership is now synced globally!
+                boardOwnership: {} 
             }
         };
 
@@ -146,7 +146,23 @@ io.on('connection', (socket) => {
         io.to(code).emit('playDiceAnimation', { totalRoll: dice1 + dice2, newState: room.gameState });
     });
 
-    // Forces immediate broadcast so players never desync
+    // NEW: Live Chat Broadcasting
+    socket.on('sendChat', (message) => {
+        const code = socket.roomCode;
+        if (!code || !rooms[code]) return;
+        const room = rooms[code];
+        
+        const player = room.gameState.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        // Broadcast to everyone in the room
+        io.to(code).emit('receiveChat', {
+            name: player.name,
+            colorClass: player.colorClass,
+            message: message
+        });
+    });
+
     socket.on('syncState', (newState) => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
