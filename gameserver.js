@@ -19,7 +19,6 @@ app.get('/', (req, res) => {
 });
 
 // --- ROOM MANAGEMENT ---
-// Instead of one global game state, we store them by room code
 const rooms = {}; 
 
 const availableColors = [
@@ -30,7 +29,6 @@ const availableColors = [
 function generateRoomCode() {
     let code;
     do {
-        // Generates a 4-character alphanumeric code
         code = Math.random().toString(36).substring(2, 6).toUpperCase();
     } while (rooms[code]);
     return code;
@@ -44,7 +42,7 @@ io.on('connection', (socket) => {
     socket.on('createRoom', (playerName) => {
         const roomCode = generateRoomCode();
         socket.join(roomCode);
-        socket.roomCode = roomCode; // Attach code to socket for easy access later
+        socket.roomCode = roomCode; 
 
         rooms[roomCode] = {
             hostId: socket.id,
@@ -103,22 +101,20 @@ io.on('connection', (socket) => {
         io.to(code).emit('toastMessage', { msg: `${playerName} joined the room.`, type: "info" });
     });
 
-    // 3. KICK PLAYER (Host Only)
+    // 3. KICK PLAYER
     socket.on('kickPlayer', (targetId) => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
         
         const room = rooms[code];
-        if (socket.id !== room.hostId) return; // Only host can kick
+        if (socket.id !== room.hostId) return;
 
         const playerIndex = room.gameState.players.findIndex(p => p.id === targetId);
         if (playerIndex !== -1) {
             const kickedPlayer = room.gameState.players[playerIndex];
             room.gameState.players.splice(playerIndex, 1);
             
-            // Tell the kicked player they were kicked
             io.to(targetId).emit('kickedOut');
-            // Make them leave the socket room
             io.sockets.sockets.get(targetId)?.leave(code);
 
             io.to(code).emit('gameStateUpdate', { gameState: room.gameState, hostId: room.hostId });
@@ -126,7 +122,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. START GAME (Host Only)
+    // 4. START GAME
     socket.on('startGame', () => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
@@ -154,11 +150,12 @@ io.on('connection', (socket) => {
         io.to(code).emit('playDiceAnimation', { totalRoll: dice1 + dice2, newState: room.gameState });
     });
 
+    // BUG FIX: The server now forces a broadcast to everyone when a local state sync occurs!
     socket.on('syncState', (newState) => {
         const code = socket.roomCode;
         if (!code || !rooms[code]) return;
         rooms[code].gameState = newState;
-        // Don't broadcast entire state back constantly, rely on local for now, but save to server RAM
+        io.to(code).emit('gameStateUpdate', { gameState: rooms[code].gameState, hostId: rooms[code].hostId });
     });
 
     socket.on('broadcastToast', (data) => {
@@ -170,7 +167,6 @@ io.on('connection', (socket) => {
          const code = socket.roomCode;
          if(!code || !rooms[code]) return;
          rooms[code].gameState = newState;
-         // Send updated state to everyone so observer UIs update
          io.to(code).emit('gameStateUpdate', { gameState: rooms[code].gameState, hostId: rooms[code].hostId });
     });
 
@@ -182,13 +178,11 @@ io.on('connection', (socket) => {
 
         const room = rooms[code];
         
-        // If host leaves before game starts, destroy the room
         if (socket.id === room.hostId && !room.gameState.gameStarted) {
             io.to(code).emit('toastMessage', { msg: "Host disconnected. Room closed.", type: "error" });
             io.to(code).emit('kickedOut');
             delete rooms[code];
         } else {
-            // Remove player
             const playerIndex = room.gameState.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
                 const name = room.gameState.players[playerIndex].name;
@@ -196,7 +190,6 @@ io.on('connection', (socket) => {
                 io.to(code).emit('gameStateUpdate', { gameState: room.gameState, hostId: room.hostId });
                 io.to(code).emit('toastMessage', { msg: `${name} disconnected.`, type: "error" });
                 
-                // If room is empty, delete it
                 if (room.gameState.players.length === 0) {
                     delete rooms[code];
                 }
