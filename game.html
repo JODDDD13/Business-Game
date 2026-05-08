@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="game.css">
     
-    <!-- IMPORT MAP FOR THREE.JS & CANNON-ES -->
     <script type="importmap">
     {
       "imports": {
@@ -18,7 +17,6 @@
     }
     </script>
     
-    <!-- SOCKET.IO CLIENT SCRIPT -->
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
@@ -36,7 +34,6 @@
 </head>
 <body class="bg-[#05070a] font-sans text-white overflow-hidden w-screen h-screen">
 
-    <!-- 1. PRE-GAME SETUP LOBBY (HYBRID) -->
     <div id="setup-screen" class="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gradient-to-br from-[#0b101e] via-[#111827] to-[#05070a]">
         <div class="bg-[#0f172a] border border-slate-700 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] p-6 md:p-8 w-full max-w-md flex flex-col items-center transition-all duration-300">
             
@@ -45,19 +42,29 @@
                 <p id="lobby-subtitle" class="text-[10px] text-slate-400 font-bold tracking-[0.3em] uppercase mt-1">Select Game Mode</p>
             </div>
 
-            <!-- MODE SELECTION -->
             <div id="mode-selection" class="w-full flex flex-col gap-4">
                 <button onclick="window.selectMode('local')" class="w-full py-4 bg-slate-800 border-2 border-slate-600 hover:border-blue-500 hover:bg-slate-700 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
                     <span>Pass & Play</span>
                     <span class="text-[9px] text-slate-400 font-normal normal-case tracking-normal">Single Device, 2-8 Players</span>
                 </button>
-                <button onclick="window.selectMode('online')" class="w-full py-4 bg-slate-800 border-2 border-slate-600 hover:border-purple-500 hover:bg-slate-700 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
+                <button onclick="window.selectMode('online-action')" class="w-full py-4 bg-slate-800 border-2 border-slate-600 hover:border-purple-500 hover:bg-slate-700 text-white font-black text-sm uppercase tracking-widest rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1">
                     <span>Online Multiplayer</span>
-                    <span class="text-[9px] text-slate-400 font-normal normal-case tracking-normal">Connect via Server</span>
+                    <span class="text-[9px] text-slate-400 font-normal normal-case tracking-normal">Host or Join a Room</span>
                 </button>
             </div>
 
-            <!-- LOCAL PLAY SETUP -->
+            <div id="online-action-selection" class="w-full hidden flex-col gap-4">
+                <button onclick="window.selectMode('online-host')" class="w-full py-4 bg-purple-600 hover:bg-purple-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(168,85,247,0.3)] transition-all active:scale-95">
+                    Host a Room
+                </button>
+                <button onclick="window.selectMode('online-join')" class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all active:scale-95">
+                    Join a Room
+                </button>
+                <button onclick="window.backToModes()" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 mt-2">
+                    Back
+                </button>
+            </div>
+
             <div id="local-setup" class="w-full hidden flex-col">
                 <div class="w-full mb-4">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Number of Players</label>
@@ -72,43 +79,62 @@
                     </select>
                 </div>
                 <div class="w-full flex flex-col gap-3 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="player-inputs-container">
-                    <!-- Inputs injected via JS -->
-                </div>
+                    </div>
                 <div class="flex gap-2">
                     <button onclick="window.backToModes()" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
                     <button onclick="window.startLocalGame()" class="flex-1 py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95">Start Game</button>
                 </div>
             </div>
 
-            <!-- ONLINE MULTIPLAYER SETUP -->
-            <div id="online-setup" class="w-full hidden flex-col">
-                <div class="w-full mb-6" id="join-section">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Enter Your Name</label>
-                    <input type="text" id="player-name-input" placeholder="Your Name" maxlength="12" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-blue-500 transition-colors mb-4">
+            <div id="online-host-setup" class="w-full hidden flex-col">
+                <div class="w-full mb-6">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Enter Your Name (Host)</label>
+                    <input type="text" id="host-name-input" placeholder="Your Name" maxlength="12" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-purple-500 transition-colors mb-4">
                     <div class="flex gap-2">
-                        <button onclick="window.backToModes()" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
-                        <button onclick="window.joinOnlineGame()" id="btn-join" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95">Join Lobby</button>
+                        <button onclick="window.selectMode('online-action')" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
+                        <button onclick="window.hostOnlineGame()" class="flex-1 py-4 bg-purple-600 hover:bg-purple-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all active:scale-95">Create Room</button>
                     </div>
                 </div>
+            </div>
 
-                <div class="w-full flex flex-col gap-3 mb-6 hidden max-h-[30vh] overflow-y-auto rules-scroll pr-2" id="lobby-players-container">
-                    <!-- Players in lobby injected via JS -->
+            <div id="online-join-setup" class="w-full hidden flex-col">
+                <div class="w-full mb-6">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Room Code</label>
+                    <input type="text" id="join-code-input" placeholder="e.g. ABCD" maxlength="6" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-blue-500 transition-colors mb-4 uppercase text-center tracking-[0.2em]">
+                    
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Enter Your Name</label>
+                    <input type="text" id="join-name-input" placeholder="Your Name" maxlength="12" class="w-full p-3 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white font-bold outline-none focus:border-blue-500 transition-colors mb-4">
+                    
+                    <div class="flex gap-2">
+                        <button onclick="window.selectMode('online-action')" class="py-4 px-4 bg-slate-700 hover:bg-slate-600 text-white font-black text-sm uppercase rounded-xl transition-all active:scale-95">Back</button>
+                        <button onclick="window.joinOnlineRoom()" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95">Join Room</button>
+                    </div>
                 </div>
+            </div>
+
+            <div id="multiplayer-lobby" class="w-full hidden flex-col">
+                <div class="bg-slate-800 border border-slate-600 rounded-lg p-3 text-center mb-4">
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Room Code</p>
+                    <p id="display-room-code" class="text-3xl font-black text-white tracking-[0.2em]">----</p>
+                </div>
+
+                <div class="w-full flex flex-col gap-2 mb-6 max-h-[30vh] overflow-y-auto rules-scroll pr-1" id="lobby-players-container">
+                    </div>
 
                 <button onclick="window.startOnlineGame()" id="btn-start-online" class="w-full py-4 bg-green-600 hover:bg-green-500 text-white font-black text-sm uppercase tracking-widest rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.4)] transition-all active:scale-95 hidden">
                     Start Game
                 </button>
                 
-                <p id="lobby-status" class="text-[10px] text-slate-400 mt-4 italic text-center hidden"></p>
+                <p id="lobby-status" class="text-[10px] text-slate-400 mt-3 italic text-center"></p>
+                
+                <button onclick="window.leaveLobby()" class="mt-4 text-xs text-slate-500 hover:text-white underline transition-colors text-center w-full">Leave Room</button>
             </div>
 
         </div>
     </div>
 
-    <!-- 2. MAIN GAME UI (Hidden until Start Game is clicked) -->
     <div id="game-ui" class="hidden flex-col lg:flex-row items-center justify-center h-full w-full p-2 md:p-4 gap-4 lg:gap-6 relative">
         
-        <!-- UNIVERSAL ACTION MODAL -->
         <div id="action-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
             <div class="bg-[#0f172a] border border-slate-600 rounded-xl shadow-[0_0_50px_rgba(0,0,0,1)] w-full max-w-sm overflow-hidden flex flex-col transform transition-all scale-95 opacity-0" id="action-modal-content">
                 <div id="action-modal-header" class="p-6 border-b border-slate-800 text-center flex flex-col items-center justify-center min-h-[6rem]">
@@ -121,16 +147,14 @@
             </div>
         </div>
 
-        <!-- FLOATING NOTIFICATIONS -->
         <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-72 pointer-events-none"></div>
 
-        <!-- LEFT PANEL: THE BANK -->
         <div id="left-panel" class="w-full lg:w-[320px] xl:w-[340px] h-auto lg:h-full max-h-[35vh] lg:max-h-[95vh] bg-[#0d1321] border border-slate-700 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.8)] flex flex-col shrink-0 z-20">
             
             <div class="p-3 lg:p-6 text-left border-b border-slate-800 flex justify-between items-center lg:block shrink-0">
                 <div>
                     <h2 class="text-xl lg:text-3xl font-black tracking-widest text-white uppercase [text-shadow:0_0_8px_rgba(255,255,255,0.5)]">The Bank</h2>
-                    <p class="text-[10px] lg:text-xs text-slate-400 mt-0 lg:mt-1">Nava Vyapar Reserve</p>
+                    <p class="text-[10px] lg:text-xs text-slate-400 mt-0 lg:mt-1">Nava Vyapar Reserve <span id="bank-room-code" class="text-purple-400 font-black ml-1 hidden"></span></p>
                 </div>
                 <button onclick="window.requestRoll()" id="btn-roll-mobile" class="lg:hidden py-2 px-6 bg-purple-600 text-white font-black text-xs uppercase rounded-md shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50">
                     🎲 Roll
@@ -154,7 +178,6 @@
                 </button>
             </div>
 
-            <!-- 3D DICE CONTAINER -->
             <div class="flex-1 p-2 lg:p-4 flex flex-col items-center justify-center relative min-h-[120px] lg:min-h-[140px] w-full mt-1 shrink-0">
                 <div id="dice-3d-container" class="w-full h-20 lg:h-32 bg-[#0b101e] rounded-xl overflow-hidden border-2 border-slate-700/50 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] relative cursor-pointer" onclick="window.requestRoll()">
                     <div id="dice-overlay" class="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[2px] opacity-0 transition-opacity duration-300 pointer-events-none z-10">
@@ -167,14 +190,12 @@
             </div>
         </div>
 
-        <!-- RIGHT PANEL: THE NEON BOARD -->
         <div id="game-board" class="aspect-square w-full max-w-[95vw] lg:w-auto lg:h-full lg:max-h-[95vh] grid grid-cols-10 grid-rows-10 bg-[#0f172a] border border-slate-700 rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden shrink-0 relative">
             
-             <!-- Connecting Overlay -->
              <div id="connecting-overlay" class="absolute inset-0 z-50 bg-[#0f172a]/80 backdrop-blur-sm hidden items-center justify-center">
                  <div class="flex flex-col items-center">
                     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
-                    <p class="text-white font-bold tracking-widest uppercase text-sm" id="overlay-msg">Connecting to Server...</p>
+                    <p class="text-white font-bold tracking-widest uppercase text-sm" id="overlay-msg">Waiting for Server...</p>
                  </div>
              </div>
 
@@ -226,7 +247,6 @@
         </div>
     </div>
 
-    <!-- MAIN GAME SCRIPT -->
     <script type="module">
         import * as THREE from "three";
         import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -235,10 +255,12 @@
         // ==========================================
         // 1. STATE & CONSTANTS
         // ==========================================
-        const socket = typeof io !== 'undefined' ? io() : null; // Connect only if Socket.io is available
+        const socket = typeof io !== 'undefined' ? io() : null; 
         
-        let gameMode = 'local'; // 'local' or 'online'
-        let myPlayerId = 'local_host'; // Used for online permissions
+        let gameMode = 'local'; 
+        let myPlayerId = 'local_host'; 
+        let hostId = null; // Track who the host is online
+        let currentRoomCode = null;
         let isRollingAnimation = false;
 
         let localGameState = {
@@ -310,28 +332,42 @@
         // ==========================================
         // 2. LOBBY & SETUP
         // ==========================================
+        window.hideAllSetupPanels = function() {
+            ['mode-selection', 'online-action-selection', 'local-setup', 'online-host-setup', 'online-join-setup', 'multiplayer-lobby'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById(id).classList.remove('flex');
+            });
+        };
+
         window.selectMode = function(mode) {
-            gameMode = mode;
-            document.getElementById('mode-selection').classList.add('hidden');
-            document.getElementById('lobby-subtitle').innerText = mode === 'local' ? 'Pass & Play Setup' : 'Multiplayer Lobby';
+            hideAllSetupPanels();
+            gameMode = mode.startsWith('online') ? 'online' : 'local';
             
             if (mode === 'local') {
+                document.getElementById('lobby-subtitle').innerText = 'Pass & Play Setup';
                 document.getElementById('local-setup').classList.remove('hidden');
                 document.getElementById('local-setup').classList.add('flex');
                 window.updatePlayerInputs();
-            } else {
-                document.getElementById('online-setup').classList.remove('hidden');
-                document.getElementById('online-setup').classList.add('flex');
+            } else if (mode === 'online-action') {
+                document.getElementById('lobby-subtitle').innerText = 'Online Multiplayer';
+                document.getElementById('online-action-selection').classList.remove('hidden');
+                document.getElementById('online-action-selection').classList.add('flex');
+            } else if (mode === 'online-host') {
+                document.getElementById('lobby-subtitle').innerText = 'Host a Room';
+                document.getElementById('online-host-setup').classList.remove('hidden');
+                document.getElementById('online-host-setup').classList.add('flex');
+            } else if (mode === 'online-join') {
+                document.getElementById('lobby-subtitle').innerText = 'Join a Room';
+                document.getElementById('online-join-setup').classList.remove('hidden');
+                document.getElementById('online-join-setup').classList.add('flex');
             }
         };
 
         window.backToModes = function() {
-            document.getElementById('local-setup').classList.add('hidden');
-            document.getElementById('online-setup').classList.add('hidden');
-            document.getElementById('local-setup').classList.remove('flex');
-            document.getElementById('online-setup').classList.remove('flex');
-            
+            window.selectMode('online-action'); 
+            // If they were in local, they shouldn't hit this specific back button, but just in case:
             document.getElementById('mode-selection').classList.remove('hidden');
+            document.getElementById('online-action-selection').classList.add('hidden');
             document.getElementById('lobby-subtitle').innerText = 'Select Game Mode';
         };
 
@@ -357,14 +393,7 @@
             for(let i=0; i<count; i++) {
                 const name = document.getElementById(`player-name-${i}`).value.trim() || `Player ${i+1}`;
                 localGameState.players.push({
-                    id: `local_${i}`,
-                    name: name,
-                    balance: 15000,
-                    position: 0,
-                    skipTurns: 0,
-                    loan: 0,
-                    loanTurns: 0,
-                    colorClass: PLAYER_COLORS[i]
+                    id: `local_${i}`, name: name, balance: 15000, position: 0, skipTurns: 0, loan: 0, loanTurns: 0, colorClass: PLAYER_COLORS[i]
                 });
             }
             localGameState.gameStarted = true;
@@ -372,24 +401,36 @@
             broadcastOrLocalToast("Local Game Started! First player, roll the dice.", "info");
         };
 
-        // --- ONLINE SETUP ---
-        window.joinOnlineGame = function() {
+        // --- ONLINE SETUP (Rooms) ---
+        window.hostOnlineGame = function() {
             if (!socket) return alert("Server not connected.");
-            const nameInput = document.getElementById('player-name-input');
-            const name = nameInput.value.trim();
+            const name = document.getElementById('host-name-input').value.trim();
             if (!name) return alert("Please enter your name.");
             
-            socket.emit('joinGame', name);
+            socket.emit('createRoom', name);
+            // UI switches to Lobby inside socket.on('roomCreated')
+        };
+
+        window.joinOnlineRoom = function() {
+            if (!socket) return alert("Server not connected.");
+            const code = document.getElementById('join-code-input').value.trim();
+            const name = document.getElementById('join-name-input').value.trim();
+            if (!code || !name) return alert("Please enter both Room Code and Name.");
             
-            document.getElementById('join-section').classList.add('hidden');
-            document.getElementById('lobby-players-container').classList.remove('hidden');
-            document.getElementById('lobby-status').classList.remove('hidden');
-            document.getElementById('lobby-status').innerText = "Waiting for Host to start...";
+            socket.emit('joinRoom', { roomCode: code, playerName: name });
         };
 
         window.startOnlineGame = function() {
             if (socket) socket.emit('startGame');
         };
+
+        window.leaveLobby = function() {
+            window.location.reload(); // Quickest way to sever socket and reset UI
+        };
+
+        window.kickPlayer = function(targetId) {
+            if(socket) socket.emit('kickPlayer', targetId);
+        }
 
         function updateOnlineLobbyUI() {
             const container = document.getElementById('lobby-players-container');
@@ -397,17 +438,29 @@
             
             localGameState.players.forEach(p => {
                 const colorBase = p.colorClass.split(' ')[0];
+                const isMe = p.id === myPlayerId;
+                const isHostDisplay = p.id === hostId ? '<span class="ml-2 text-[8px] bg-purple-600 px-1.5 py-0.5 rounded uppercase tracking-widest">Host</span>' : '';
+                
+                // Only host can kick, and host cannot kick themselves
+                let kickBtn = '';
+                if (myPlayerId === hostId && !isMe) {
+                    kickBtn = `<button onclick="window.kickPlayer('${p.id}')" class="text-red-400 hover:text-red-300 text-[10px] font-bold uppercase underline">Kick</button>`;
+                }
+
                 container.innerHTML += `
-                    <div class="flex items-center gap-3 p-3 bg-slate-800 border border-slate-700 rounded-lg">
-                        <div class="w-4 h-4 rounded-full ${colorBase} shrink-0 shadow-[0_0_8px_currentColor]"></div>
-                        <span class="text-sm text-white font-bold">${p.name} ${p.id === myPlayerId ? '(You)' : ''}</span>
+                    <div class="flex items-center justify-between p-3 bg-slate-800 border border-slate-700 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-4 h-4 rounded-full ${colorBase} shrink-0 shadow-[0_0_8px_currentColor]"></div>
+                            <span class="text-sm text-white font-bold">${p.name} ${isMe ? '(You)' : ''} ${isHostDisplay}</span>
+                        </div>
+                        ${kickBtn}
                     </div>
                 `;
             });
 
-            if (localGameState.players.length > 0 && localGameState.players[0].id === myPlayerId) {
+            if (myPlayerId === hostId) {
                 document.getElementById('btn-start-online').classList.remove('hidden');
-                document.getElementById('lobby-status').innerText = "You are the Host. Start when ready.";
+                document.getElementById('lobby-status').innerText = "You are the Host. Kick players or Start when ready.";
                 
                 document.getElementById('btn-start-online').disabled = localGameState.players.length < 2;
                 if(localGameState.players.length < 2) {
@@ -415,10 +468,25 @@
                 } else {
                      document.getElementById('btn-start-online').classList.remove('opacity-50', 'cursor-not-allowed');
                 }
+            } else {
+                document.getElementById('btn-start-online').classList.add('hidden');
+                document.getElementById('lobby-status').innerText = "Waiting for Host to start the game...";
             }
         }
 
-        // Shared Transition
+        function showLobbyScreen(code) {
+            hideAllSetupPanels();
+            document.getElementById('lobby-subtitle').innerText = 'Room Lobby';
+            document.getElementById('multiplayer-lobby').classList.remove('hidden');
+            document.getElementById('multiplayer-lobby').classList.add('flex');
+            
+            document.getElementById('display-room-code').innerText = code;
+            
+            // Put room code in Bank header later
+            document.getElementById('bank-room-code').innerText = `[${code}]`;
+            document.getElementById('bank-room-code').classList.remove('hidden');
+        }
+
         function transitionToGame() {
             document.getElementById('setup-screen').classList.add('hidden');
             const gameUi = document.getElementById('game-ui');
@@ -436,16 +504,34 @@
         if (socket) {
             socket.on('connect', () => { myPlayerId = socket.id; });
             
-            socket.on('gameStateUpdate', (newState) => {
+            socket.on('roomCreated', (code) => {
+                currentRoomCode = code;
+                showLobbyScreen(code);
+            });
+
+            socket.on('roomJoined', (code) => {
+                currentRoomCode = code;
+                showLobbyScreen(code);
+            });
+
+            socket.on('gameStateUpdate', (data) => {
                 if (gameMode !== 'online') return;
-                localGameState = newState;
-                updateOnlineLobbyUI();
-                if (localGameState.gameStarted && !isRollingAnimation) {
+                localGameState = data.gameState;
+                hostId = data.hostId;
+                
+                if(!localGameState.gameStarted) {
+                    updateOnlineLobbyUI();
+                } else if (!isRollingAnimation) {
                     renderBoard(); renderBankUI();
                 }
             });
 
             socket.on('toastMessage', (data) => showToast(data.msg, data.type));
+
+            socket.on('kickedOut', () => {
+                alert("You have been disconnected or kicked from the room.");
+                window.location.reload();
+            });
 
             socket.on('gameStarted', (newState) => {
                 if (gameMode !== 'online') return;
@@ -500,8 +586,6 @@
 
         function syncStateIfOnline() {
             if (gameMode === 'online' && socket) {
-                // In a secure app, the server would calculate everything. 
-                // For this hybrid demo, we sync local state to server.
                 socket.emit('syncState', localGameState);
             }
         }
@@ -524,7 +608,6 @@
         };
 
         function executeLocalRoll(currentPlayer) {
-            // Local Mode Roll Logic
             if (currentPlayer.skipTurns > 0) {
                 currentPlayer.skipTurns--;
                 broadcastOrLocalToast(`${currentPlayer.name} is resting/serving time. Turns left: ${currentPlayer.skipTurns}`, 'info');
@@ -578,7 +661,10 @@
             localGameState.isAwaitingAction = false;
             localGameState.pendingTile = null;
             localGameState.currentPlayerIndex = (localGameState.currentPlayerIndex + 1) % localGameState.players.length;
-            syncStateIfOnline();
+            
+            if (gameMode === 'online' && socket) {
+                socket.emit('endTurn', localGameState);
+            }
             renderBankUI();
         }
 
@@ -628,7 +714,6 @@
                 player.balance -= tile.price;
                 tile.ownerId = player.id;
                 
-                // Update local boardData definition so rendering works
                 const actualTile = boardData.find(t => t.id === tile.id);
                 if(actualTile) actualTile.ownerId = player.id;
 
@@ -709,9 +794,11 @@
 
         // Host controls
         window.takeLoan = function() {
+            if (gameMode === 'online' && myPlayerId !== hostId) return alert("Only the Host can access Bank Controls.");
+            
             const playerId = document.getElementById('loan-player-select').value;
             const amount = parseInt(document.getElementById('loan-amount').value);
-            const player = localGameState.players.find(p => p.id === playerId || p.id == playerId); // string/int check
+            const player = localGameState.players.find(p => p.id === playerId || p.id == playerId); 
             
             if (!amount || amount < 500) return alert("Minimum loan amount is ₹500.");
             if (player.loan > 0) return alert("You must repay your current loan before taking another.");
@@ -726,6 +813,8 @@
         };
 
         window.repayLoan = function() {
+            if (gameMode === 'online' && myPlayerId !== hostId) return alert("Only the Host can access Bank Controls.");
+
             const playerId = document.getElementById('loan-player-select').value;
             const player = localGameState.players.find(p => p.id === playerId || p.id == playerId);
             
@@ -739,6 +828,8 @@
         };
 
         window.handleBankTransaction = function(type) {
+            if (gameMode === 'online' && myPlayerId !== hostId) return alert("Only the Host can access Bank Controls.");
+
             const playerId = document.getElementById('bank-player-select').value;
             const amount = parseInt(document.getElementById('bank-amount').value);
             const player = localGameState.players.find(p => p.id === playerId || p.id == playerId);
@@ -912,12 +1003,13 @@
                 btn.className = `flex items-start justify-between px-2 lg:px-4 py-1.5 lg:py-3 rounded border transition-all ${isActive ? `border-${shadowColor} bg-slate-800 scale-[1.02] shadow-[0_0_15px_var(--tw-shadow-color)] shadow-${shadowColor}` : 'border-slate-700 bg-slate-800/50 opacity-70'}`;
                 
                 const youTag = (gameMode === 'online' && player.id === myPlayerId) ? '(You)' : '';
+                const hostTag = (gameMode === 'online' && player.id === hostId) ? '<span class="ml-1 text-[8px] bg-purple-600 px-1 py-0.5 rounded text-white font-normal">HOST</span>' : '';
 
                 btn.innerHTML = `
                     <div class="flex flex-col">
                         <div class="flex items-center gap-1.5 lg:gap-2 font-bold text-[8px] lg:text-xs">
                             <div class="w-2 h-2 lg:w-2.5 lg:h-2.5 rounded-full ${bgColor}"></div>
-                            <span class="text-slate-200 truncate max-w-[80px] lg:max-w-[120px]">${player.name} ${youTag}</span>
+                            <span class="text-slate-200 truncate max-w-[80px] lg:max-w-[120px]">${player.name} ${youTag} ${hostTag}</span>
                             ${skipBadge}
                         </div>
                         ${loanInfo}
